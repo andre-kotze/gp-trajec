@@ -1,7 +1,9 @@
 import numpy as np
+#from math import atan2
+#import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 
-def transform_2d_old(line, dest, printing=False):
+def transform_2d(line, dest, printing=False):
     '''
     Takes a line and transforms it to
     map onto the interval dest, i.e. 
@@ -75,68 +77,6 @@ def transform_2d_old(line, dest, printing=False):
     line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], np.ones(len(line)))])
     #if printing:
     #    print(transform_matrix)
-    return line # numpy array like [[x,y,1],[x,y,1]...]
-
-def transform_2d(line, dest, printing=False):
-    '''
-    Takes a line and transforms it to
-    map onto the interval dest, i.e. 
-    between a start and end point
-    line: numpy array of coordinate list pairs
-    dest: list of coordinate list pairs of length 2
-    '''
-    # Endpoints:
-    ((ax, ay), (bx, by)) = dest
-    (px, py), (qx, qy) = line[0], line[-1]
-
-    # TRANSLATION TO ORIGIN:
-    # find deviance from ORIGIN
-    if printing:
-        print(f'Translation: dx = {px}, dy = {py}')
-
-    line[:,0] -= px
-    line[:,1] -= py
-    # now the line originates at the origin
-    
-    # SCALING:
-    line_dist = np.linalg.norm(line[-1] - line[0])
-    dest_dist = np.linalg.norm(dest[-1] - dest[0])
-    scale_factor = dest_dist / line_dist
-    if printing:
-        print(f'Scale factor: {scale_factor}\nLine: {line_dist}\nDist: {dest_dist}')
-    scale_matrix = np.array([[scale_factor,0,0],
-                            [0,scale_factor,0],
-                            [0,0,1]])
-    if printing:
-        print(scale_matrix)
-    # ROTATION:
-    line_angle = np.arctan2(qy - py, qx - px)
-    dest_angle = np.arctan2(by - ay, bx - ax)
-    theta = dest_angle - line_angle
-    # negate, to rotate c-clockwise
-    theta *= -1
-    if printing:
-        print(f'Delta theta: {np.rad2deg(theta)}°')
-    c = np.cos(theta)
-    d = np.sin(theta)
-    rotation_matrix = np.array([[c,-d,0],
-                                [d,c,0],
-                                [0,0,1]])
-
-    # TRANSFORMATION:
-    transform_matrix = scale_matrix @ rotation_matrix
-    line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], np.zeros(len(line)))])
-    #if printing:
-    #    print(transform_matrix)
-    # TRANSLATE TO DEST
-    # find deviance from Point a
-    dx = line[0,0] - ax
-    dy = line[0,1] - ay
-    if printing:
-        print(f'Final translation: dx = {dx}, dy = {dy}')
-
-    line[:,0] -= dx
-    line[:,1] -= dy
     return line # numpy array like [[x,y,1],[x,y,1]...]
 
 def transform_3d(line, dest, printing=False):
@@ -244,3 +184,20 @@ def read_geodata(geodata, h, base=0):
 
     barrier_meshes = []
     return barrier_meshes
+'''
+def __main__():
+    x = np.linspace(-5,5,100)
+    y = 2*np.sin(x) + np.sin(4*x) + 3*np.cos(x) + np.sin(2*x) + np.sin(x**2) - np.cos(6*x)
+    z = np.ones(100)
+    pA = np.array([0,0])
+    pB = np.array([20,20])
+    a, b = [pA[0],pB[0]],[pA[1],pB[1]]
+    line = np.column_stack((x,y))
+    t_line = transform(line, [pA,pB])
+    t_line = np.array(t_line)
+    plt.plot(t_line[:,0],t_line[:,1])
+    plt.plot(a,b)
+    plt.show()
+
+__main__()
+'''

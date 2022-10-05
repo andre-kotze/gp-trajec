@@ -1,5 +1,7 @@
 import numpy as np
-from shapely.geometry import LineString, Polygon, MultiPolygon
+from shapely.geometry import LineString, Polygon, MultiPolygon, Point, shape, mapping
+import fiona
+
 x = 0
 
 ##### ENDPOINTS
@@ -35,3 +37,19 @@ nofly = Polygon([(0,25),
                 (15,20),
                 (0,20)
                 ])
+
+barrier_set = MultiPolygon([building, military, nofly])
+clokes = []
+with fiona.open('./data/clove_lakes.gpkg', layer='clove_lakes') as layer:
+    for feat in layer:
+        clokes.append(shape(feat['geometry']))
+clokes = [cloke[0] for cloke in clokes]
+
+islas = []
+with fiona.open('./data/mediterranean.gpkg', layer='mediterranean') as layer:
+    for feat in layer:
+        islas.append(shape(feat['geometry']))
+islas = [isla[0] for isla in islas]
+
+journey = (Point(-74.1412,40.6053), Point(-74.05937,40.6377))
+#journey = (Point(5547780,1980024), Point(5727123,1564999))
