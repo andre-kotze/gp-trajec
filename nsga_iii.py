@@ -12,15 +12,13 @@ from deap import algorithms, base, creator, tools, gp
 # for 2D implementation/testing we use shapely
 from shapely.geometry import LineString
 from test_data_2d import barrier_set, clokes, journey, islas
-from gptrajec import transform_2d
+from gptrajec import transform_2d, eaTrajec
 
 SEGMENTS = 100
 #ZERO_INTERSECT_TOLERANCE = True
 #INT_NONINT = [0,0]
 START, END = journey
 GEOFENCES = clokes
-
-X = numpy.linspace(START.x,END.x,SEGMENTS)
 
 def validate(individual):
     # check intersection
@@ -71,14 +69,14 @@ def evalPath(individual, points):
     # Evaluate the fitness (only consider length)
     fitness = line.length
     if valid == 0:
-        fitness = 10e15
+        fitness *= 10
 
     return fitness,
 
 
 # we change this line:
 #toolbox.register("evaluate", evalPath, points=[x/SEGMENTS for x in range(SEGMENTS)])
-# to this, for 100 segments:
+# to this, for SEGMENTS segments:
 toolbox.register("evaluate", evalPath, points=numpy.linspace(0,1,SEGMENTS))
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
@@ -89,7 +87,7 @@ toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_v
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
 def main(gens=400, init_pop=300, hof_size=1):
-    random.seed(318)
+    #random.seed(151)
 
     pop = toolbox.population(n=init_pop) # default 300
     hof = tools.HallOfFame(hof_size) # default 1
@@ -97,15 +95,17 @@ def main(gens=400, init_pop=300, hof_size=1):
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     stats_size = tools.Statistics(len)
     mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
-    mstats.register("avg", numpy.mean)
+    mstats.register("mean", numpy.mean)
     mstats.register("std", numpy.std)
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
-                                   halloffame=hof, verbose=True)
+    pop, log = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
+                            halloffame=hof, verbose=True)
     #print(f'Intersections: {INT_NONINT[0]}\nNon-intersections: {INT_NONINT[1]}')
-    return pop, log, hof, pset
+    #grinfo = {'fitness':log.chapters['fit'].select("min"),
+    #            'size':log.chapters['size'].select("mean")}
+    return pop, log, hof, pset, mstats
 
 if __name__ == "__main__":
     main()

@@ -51,5 +51,6 @@ with fiona.open('./data/mediterranean.gpkg', layer='mediterranean') as layer:
         islas.append(shape(feat['geometry']))
 islas = [isla[0] for isla in islas]
 
-journey = (Point(-74.1412,40.6053), Point(-74.05937,40.6377))
+#journey = (Point(-74.1412,40.6053), Point(-74.05937,40.6377))
+journey = (Point(-74.1412,40.6200), Point(-74.05937,40.6377))
 #journey = (Point(5547780,1980024), Point(5727123,1564999))
