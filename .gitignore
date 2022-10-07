@@ -11,5 +11,11 @@ data/
 # Plots
 plot_out/
 
+# Logs
+logs/
+
 # Notebooks
 .ipynb_checkpoints/
+
+# Debugging
+.vscode/
