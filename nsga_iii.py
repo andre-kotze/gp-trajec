@@ -69,7 +69,7 @@ def evalPath(individual, points):
     # Evaluate the fitness (only consider length)
     fitness = line.length
     if valid == 0:
-        fitness *= 10
+        fitness *= 100
 
     return fitness,
 
@@ -87,7 +87,7 @@ toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_v
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
 def main(gens=400, init_pop=300, hof_size=1):
-    #random.seed(151)
+    random.seed(151)
 
     pop = toolbox.population(n=init_pop) # default 300
     hof = tools.HallOfFame(hof_size) # default 1
@@ -100,12 +100,12 @@ def main(gens=400, init_pop=300, hof_size=1):
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
-                            halloffame=hof, verbose=True)
+    pop, log, gen_best = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
+                                halloffame=hof, verbose=False)
     #print(f'Intersections: {INT_NONINT[0]}\nNon-intersections: {INT_NONINT[1]}')
     #grinfo = {'fitness':log.chapters['fit'].select("min"),
     #            'size':log.chapters['size'].select("mean")}
-    return pop, log, hof, pset, mstats
+    return pop, log, hof, pset, gen_best
 
 if __name__ == "__main__":
     main()

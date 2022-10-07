@@ -43,7 +43,7 @@ clokes = []
 with fiona.open('./data/clove_lakes.gpkg', layer='clove_lakes') as layer:
     for feat in layer:
         clokes.append(shape(feat['geometry']))
-clokes = [cloke[0] for cloke in clokes]
+clokes = MultiPolygon([cloke[0] for cloke in clokes])
 
 islas = []
 with fiona.open('./data/mediterranean.gpkg', layer='mediterranean') as layer:

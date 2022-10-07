@@ -4,6 +4,7 @@ import time
 import numpy as np
 from shapely.geometry import Polygon
 from deap import tools, algorithms
+from tqdm import tqdm
 
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
@@ -69,6 +70,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals', 'dur'] + (stats.fields if stats else [])
 
+    # NEW: record best of generation
+    gen_best = []
+
     # Evaluate the individuals with an invalid fitness
     invalid_ind = [ind for ind in population if not ind.fitness.valid]
     fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
@@ -84,7 +88,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
         print(logbook.stream)
 
     # Begin the generational process
-    for gen in range(1, ngen + 1):
+    for gen in tqdm(range(1, ngen + 1)):
         start = time.time()
         # Select the next generation individuals
         offspring = toolbox.select(population, len(population))
@@ -103,6 +107,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
         if halloffame is not None:
             halloffame.update(offspring)
 
+        # NEW: select best of generation
+        gen_best.extend(tools.selBest(population, 1))
+
         # Replace the current population by the offspring
         population[:] = offspring
 
@@ -115,7 +122,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
         if verbose:
             print(logbook.stream)
 
-    return population, logbook
+    return population, logbook, gen_best
 
 
 def transform_2d_old(line, dest, printing=False):
