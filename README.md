@@ -8,3 +8,13 @@ First order of business is to transform (a part of) any function so that it conn
 - Attempt 1: y = 3x + 2
 - Attempt 2: y = 2sin(x) + sin(4x) + 3cos(x) + sin(2x) + sin(x**2) - cos(6x)
 - Attempt 3: y = sin(x) + 0.8sin(4x) + cos(x) + 0.6sin(2x) + sin(x**2) - 1.2cos(6x)
+
+## 2-dimensional:
+
+250 generations for optimising the path through Clove Lakes subset:
+
+![Alt Text](demo/20221007-142043.png)
+
+Visualising the evolution:
+
+![Alt Text](demo/20221007-142043.gif)
