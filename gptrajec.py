@@ -17,7 +17,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                     operators.
     :param cxpb: The probability of mating two individuals.
     :param mutpb: The probability of mutating an individual.
-    :param ngen: The number of generation.
+    :param ngen: The number of generations.
     :param stats: A :class:`~deap.tools.Statistics` object that is updated
                   inplace, optional.
     :param halloffame: A :class:`~deap.tools.HallOfFame` object that will
@@ -87,9 +87,11 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     if verbose:
         print(logbook.stream)
 
+    # NEW: Instantiate tqdm outside for control of description
+    run = tqdm(range(1, ngen + 1))
     # Begin the generational process
-    for gen in tqdm(range(1, ngen + 1)):
-        start = time.time()
+    for gen in run:
+        start = time.perf_counter()
         # Select the next generation individuals
         offspring = toolbox.select(population, len(population))
 
@@ -108,19 +110,23 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             halloffame.update(offspring)
 
         # NEW: select best of generation
-        gen_best.extend(tools.selBest(population, 1))
+        best = tools.selBest(population, 1)
+        gen_best.extend(best)
+        run.set_description(f'Fitness: {best.fitness.getValues()[0]}')
 
         # Replace the current population by the offspring
         population[:] = offspring
 
         # check the generation runtime
-        dur = time.time() - start
+        dur = time.perf_counter() - start
 
         # Append the current generation statistics to the logbook
         record = stats.compile(population) if stats else {}
         logbook.record(gen=gen, nevals=len(invalid_ind), dur=dur, **record)
         if verbose:
-            print(logbook.stream)
+            #print(logbook.stream)
+            # write to tqdm output instead:
+            tqdm.write(logbook.stream)
 
     return population, logbook, gen_best
 

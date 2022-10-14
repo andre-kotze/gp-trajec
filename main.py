@@ -1,6 +1,8 @@
 # wrapper for visualisation
 import datetime as dt
 import time
+import argparse
+import logging
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -17,17 +19,35 @@ SEGMENTS = 100
 GENS = 250
 SAVE_PLOT = True
 SAVE_GIF = True
+GIF_VIEW_BUFFER = 0.15
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+logging.basicConfig(format='%(message)s', level=logging.INFO)
 
 X = np.linspace(0,1,SEGMENTS)
 interval = (START.coords[0], END.coords[0])
 interval = np.array([list(ele) for ele in list(interval)])
 
+def parse_opts():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ngen', type=int, default=GENS, help='number of generations to evolve through')
+    parser.add_argument('--nsegs', type=int, default=SEGMENTS, help='number of vertices (granularity) of the path')
+    parser.add_argument('--name', type=str, default=LABEL, help='project/experiment label')
+    parser.add_argument('--no-plot', action='store_false', default=True, help='save plot of evolutionary process')
+    parser.add_argument('--save-gif', action='store_true', default=False, help='save gif animation of evolutionary process (heavy)')
+
+    return parser.parse_args()
+
+def alpha_func(n, t):
+    # return an opacity value according to a function
+    # n = current generation
+    # t = total generations
+    return 10 ** (n/t) / 10
+
 if SAVE_GIF:
     fig2, ax = plt.subplots()
     title = ax.text(0.9, 0.9, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
                 transform=ax.transAxes, ha="center")
-    buff = 0.1
+    buff = GIF_VIEW_BUFFER
     minx, miny, maxx, maxy = GEOFENCES.bounds
 
 def animate(i, gen_best, pset):
@@ -36,7 +56,7 @@ def animate(i, gen_best, pset):
     y = np.array([ln_func(xc) for xc in X])
     linelist = np.array([[xc,yc] for xc,yc in zip(X,y)])
     line = transform_2d(linelist, interval)
-    opacity = i / len(gen_best)
+    opacity = alpha_func(i, len(gen_best))
     if gen_best[i].fitness.getValues()[0] > 8:
         opacity=0
     line = ax.plot(line[:,0], line[:,1], color = 'purple', lw=1, alpha=opacity)
@@ -44,8 +64,8 @@ def animate(i, gen_best, pset):
     return line, titl,
 
 def create_gif(gen_best, pset):
-    init_time = time.time()
-    print('Animating GIF')
+    init_time = time.perf_counter()
+    logging.info('Animating GIF')
     ax.set_aspect('equal')
     buffx, buffy = buff*abs(minx - maxx), buff*abs(miny - maxy)
     ax.set_xlim(minx-buffx,maxx+buffx)
@@ -62,13 +82,11 @@ def create_gif(gen_best, pset):
                         #interval was 40, blit was True
     ani.save(f"plot_out/{LABEL}.gif", dpi=300, writer=PillowWriter(fps=25))
     plt.close(fig2)
-    print(f'GIF created in {time.time() - init_time}s')
+    dur = time.perf_counter() - init_time
+    logging.info(f'GIF created in {round(dur, 2)}s')
 
-
-def main():
-    init_time = time.time()
-    print(f'Starting...\nRunning for {GENS} generations')
-    pop, log, hof, pset, gen_best = nsga_main(gens=GENS, hof_size=1)
+def plot_log(log, hof, pset):
+    logging.info('Plotting results...')
     fig1, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     fig1.suptitle('Pathing Result', fontsize=10)
     ax1.set_title('Hall of Fame', fontsize=10)
@@ -76,7 +94,6 @@ def main():
     ax3.set_title('Solution Size (Pop Mean)', fontsize=10)
     ax4.set_title('Evaluation Time (s)', fontsize=10)
     ax1.scatter([START.x, END.x],[START.y,END.y])
-    print('\n\n\nHoF:')
     #for barrier in barrier_set:
     for barrier in GEOFENCES:
         #ax1.plot(*barrier.exterior.xy)
@@ -86,23 +103,31 @@ def main():
         ln_func = gp.compile(expr=solution, pset=pset)
         y = np.array([ln_func(xc) for xc in X])
         linelist = np.array([[xc,yc] for xc,yc in zip(X,y)])
-        print(n, '\t', solution)
         line = transform_2d(linelist, interval)
         ax1.plot(line[:,0], line[:,1])
 
-    dur = time.time() - init_time
-    print(f'{GENS} generations completed in {round(dur, 2)} ({round(dur/GENS,3)}s per generation)')
     ax2.plot(log.chapters["fitness"].select("min"))
     ax3.plot(log.chapters["size"].select("mean"))
     ax4.plot(log.select('dur'))
     ax1.set_aspect('equal', 'box')
     fig1.tight_layout()
-
-    if SAVE_GIF:
-        create_gif(gen_best, pset)
-    if SAVE_PLOT:
-        fig1.savefig(f'plot_out/{LABEL}.png')
+    fig1.savefig(f'plot_out/{LABEL}.png')
     plt.show()
 
+def main(opt):
+    init_time = time.perf_counter()
+    ngen = opt.ngen
+    logging.info(f'Starting...\nRunning for {ngen} generations')
+    pop, log, hof, pset, gen_best = nsga_main(gens=ngen, hof_size=1)
+    print(f'\n\nOptimal solution:\n{hof[0]}')
+    dur = time.perf_counter() - init_time
+    logging.info(f'{ngen} generations completed in {round(dur, 2)} ({round(dur/ngen,3)}s per generation)')
+    if not opt.no_plot:
+        plot_log(log, hof, pset)
+    if opt.save_gif:
+        create_gif(gen_best, pset)
+    logging.info('[FINISHED]')
+
 if __name__ == "__main__":
-    main()
+    opt = parse_opts()
+    main(opt)
