@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import random
 import time
 
@@ -72,6 +73,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
 
     # NEW: record best of generation
     gen_best = []
+    # NEW: record durations of different steps
+    # within each generation
+    durs = {'prep':[], 'eval':[], 'trans':[]}
 
     # Evaluate the individuals with an invalid fitness
     invalid_ind = [ind for ind in population if not ind.fitness.valid]
@@ -91,44 +95,55 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     run = tqdm(range(1, ngen + 1))
     # Begin the generational process
     for gen in run:
-        start = time.perf_counter()
-        # Select the next generation individuals
-        offspring = toolbox.select(population, len(population))
+        try:
+            t0 = time.perf_counter()
+            # Select the next generation individuals
+            offspring = toolbox.select(population, len(population))
 
-        # Vary the pool of individuals
-        offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
+            # Vary the pool of individuals
+            offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
 
-        # Evaluate the individuals with an invalid fitness
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
-            ind.generation = gen
+            t1 = time.perf_counter()
+            durs['prep'].append(t1 - t0)
+            # Evaluate the individuals with an invalid fitness
+            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
+                ind.generation = gen
 
-        # Update the hall of fame with the generated individuals
-        if halloffame is not None:
-            halloffame.update(offspring)
+            t2 = time.perf_counter()
+            durs['eval'].append(t2 - t1)
+            # Update the hall of fame with the generated individuals
+            if halloffame is not None:
+                halloffame.update(offspring)
 
-        # NEW: select best of generation
-        best = tools.selBest(population, 1)
-        gen_best.extend(best)
-        run.set_description(f'Fitness: {best.fitness.getValues()[0]}')
+            # NEW: select best of generation
+            best = tools.selBest(population, 1)
+            gen_best.extend(best)
+            run.set_description(f'Fitness: {best[0].fitness.getValues()[0]:.5f}')
 
-        # Replace the current population by the offspring
-        population[:] = offspring
+            # Replace the current population by the offspring
+            population[:] = offspring
 
-        # check the generation runtime
-        dur = time.perf_counter() - start
+            # check the generation runtime
+            t3 = time.perf_counter()
+            dur = t3 - t0
+            durs['trans'].append(t3 - t2)
 
-        # Append the current generation statistics to the logbook
-        record = stats.compile(population) if stats else {}
-        logbook.record(gen=gen, nevals=len(invalid_ind), dur=dur, **record)
-        if verbose:
-            #print(logbook.stream)
-            # write to tqdm output instead:
-            tqdm.write(logbook.stream)
-
-    return population, logbook, gen_best
+            # Append the current generation statistics to the logbook
+            record = stats.compile(population) if stats else {}
+            logbook.record(gen=gen, nevals=len(invalid_ind), dur=dur, **record)
+            if verbose:
+                #print(logbook.stream)
+                # write to tqdm output instead:
+                tqdm.write(logbook.stream)
+        except KeyboardInterrupt:
+            logger.warning(f'Interrupted by user after {gen} generations')
+            run.close()
+            break
+    durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
+    return population, logbook, gen_best, durs
 
 
 def transform_2d_old(line, dest, printing=False):

@@ -7,17 +7,16 @@ import random
 import math
 
 import numpy
-from deap import algorithms, base, creator, tools, gp
+from deap import base, creator, tools, gp
 
 # for 2D implementation/testing we use shapely
 from shapely.geometry import LineString
-from test_data_2d import barrier_set, clokes, journey, islas
+from test_data_2d import barrier_set, clokes, journeys, islas
 from gptrajec import transform_2d, eaTrajec
 
 SEGMENTS = 100
-#ZERO_INTERSECT_TOLERANCE = True
-#INT_NONINT = [0,0]
-START, END = journey
+ZERO_INTERSECT_TOLERANCE = False
+START, END = journeys['bc-tc']
 GEOFENCES = clokes
 
 def validate(individual):
@@ -25,9 +24,15 @@ def validate(individual):
     for barrier in GEOFENCES:
         if individual.intersects(barrier):
             #INT_NONINT[0] += 1
-            return 0
+            return False
     #INT_NONINT[1] += 1
-    return 1
+    return True
+
+def flexible_validate(individual):
+    intersection = 0
+    for barrier in GEOFENCES:
+        intersection += barrier.intersection(individual).length
+    return intersection **2
 
 def protectedDiv(left, right):
     try:
@@ -65,11 +70,16 @@ def evalPath(individual, points):
     y = [func(x) for x in points]
     line = transform_2d(numpy.column_stack((points, y)), [numpy.array(list(START.coords[0])), numpy.array(list(END.coords[0]))])
     line = LineString(line)
-    valid = validate(line)
-    # Evaluate the fitness (only consider length)
-    fitness = line.length
-    if valid == 0:
-        fitness *= 100
+    if ZERO_INTERSECT_TOLERANCE:
+        valid = validate(line)
+        if valid:
+        # Evaluate the fitness (only consider length)
+            fitness = line.length
+        else:
+        # Severely penalise invalid lines
+            fitness = 100 * line.length
+    else:
+        fitness = flexible_validate(line) + line.length
 
     return fitness,
 
@@ -100,12 +110,9 @@ def main(gens=400, init_pop=300, hof_size=1):
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log, gen_best = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
+    pop, log, gen_best, durs = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
                                 halloffame=hof, verbose=False)
-    #print(f'Intersections: {INT_NONINT[0]}\nNon-intersections: {INT_NONINT[1]}')
-    #grinfo = {'fitness':log.chapters['fit'].select("min"),
-    #            'size':log.chapters['size'].select("mean")}
-    return pop, log, hof, pset, gen_best
+    return pop, log, hof, pset, gen_best, durs
 
 if __name__ == "__main__":
     main()
