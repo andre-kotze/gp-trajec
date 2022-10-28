@@ -42,14 +42,16 @@ barrier_set = MultiPolygon([building, military, nofly])
 clokes = []
 with fiona.open('./data/clove_lakes_utm.gpkg', layer='clove_lakes_utm') as layer:
     for feat in layer:
-        clokes.append(shape(feat['geometry']))
-clokes = MultiPolygon([cloke[0] for cloke in clokes])
+        #clokes.append(feat)
+        clokes.append(shape(feat['geometry']).geoms[0])
+#clokes = MultiPolygon([cloke.geoms for cloke in clokes])
+clokes = MultiPolygon(clokes)
 
 islas = []
 with fiona.open('./data/mediterranean.gpkg', layer='mediterranean') as layer:
     for feat in layer:
-        islas.append(shape(feat['geometry']))
-islas = [isla[0] for isla in islas]
+        islas.append(shape(feat['geometry']).geoms[0])
+islas = MultiPolygon(islas)
 
 #journey = (Point(-74.1412,40.6053), Point(-74.05937,40.6377))
 #journey = (Point(-74.1412,40.6200), Point(-74.05937,40.6377))
@@ -61,7 +63,10 @@ islas = [isla[0] for isla in islas]
 journeys = {
     'bl-tr': (Point(288501.2,48648.0), Point(294681.4,53744.4)),
     'tl-br': (Point(294952.3,49073.8), Point(287778.7,53150.9)),
-    'bc-tc': (Point(291107.6,53789.1), Point(292653.3,48962.3))
+    'bc-tc': (Point(291107.6,53789.1), Point(292653.3,48962.3)),
+    'grc1': (Point(5680405,1889944), Point(5579206,1609699)),
+    'grc2': (Point(5533696,2073182), Point(5579206,1609699)),
+    'lc-rc': (Point(5533696,2073182), Point(5579206,1609699))
 }
 
 example_route = []
@@ -73,5 +78,5 @@ example_route = example_route[0]
 example_space = []
 with fiona.open('./data/example_space.gpkg', layer='example_space') as layer:
     for feat in layer:
-        example_space.append(shape(feat['geometry']))
-example_space = MultiPolygon([ex[0] for ex in example_space])
+        example_space.append(shape(feat['geometry']).geoms[0])
+example_space = MultiPolygon(example_space)

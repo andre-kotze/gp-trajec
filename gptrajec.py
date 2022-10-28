@@ -1,4 +1,3 @@
-from asyncio.log import logger
 import random
 import time
 
@@ -107,7 +106,8 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             durs['prep'].append(t1 - t0)
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+            # NEW: add multiprocessing in a different way:
+            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) # ToDo: except KeyboardInterrupt if during evaluate
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
                 ind.generation = gen
@@ -139,11 +139,13 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 # write to tqdm output instead:
                 tqdm.write(logbook.stream)
         except KeyboardInterrupt:
-            logger.warning(f'Interrupted by user after {gen} generations')
+            exit_msg = f'Interrupted by user after {gen} generations'
             run.close()
             break
+        else:
+            exit_msg = f'Completed {gen} generations'
     durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
-    return population, logbook, gen_best, durs
+    return population, logbook, gen_best, durs, exit_msg
 
 
 def transform_2d_old(line, dest, printing=False):

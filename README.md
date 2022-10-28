@@ -18,3 +18,13 @@ First order of business is to transform (a part of) any function so that it conn
 Visualising the evolution:
 
 ![Alt Text](demo/20221007-142043.gif)
+
+
+## ToDo
+
+except Keyboard Interrupt during multiprocessing
+auto-fill results/tests table
+
+## Notes
+
+imap_unordered doesn't work, unless Ind ID is passed back and forth

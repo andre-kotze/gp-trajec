@@ -5,6 +5,7 @@
 import operator
 import random
 import math
+import multiprocessing
 
 import numpy
 from deap import base, creator, tools, gp
@@ -21,7 +22,7 @@ GEOFENCES = clokes
 
 def validate(individual):
     # check intersection
-    for barrier in GEOFENCES:
+    for barrier in GEOFENCES.geoms:
         if individual.intersects(barrier):
             #INT_NONINT[0] += 1
             return False
@@ -30,7 +31,7 @@ def validate(individual):
 
 def flexible_validate(individual):
     intersection = 0
-    for barrier in GEOFENCES:
+    for barrier in GEOFENCES.geoms:
         intersection += barrier.intersection(individual).length
     return intersection **2
 
@@ -93,10 +94,14 @@ toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
+# NEW: add multiprocessing
+pool = multiprocessing.Pool()
+toolbox.register("map", pool.imap)
+
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
-def main(gens=400, init_pop=300, hof_size=1):
+def main(cfg, gens=400, init_pop=300, hof_size=1):
     random.seed(151)
 
     pop = toolbox.population(n=init_pop) # default 300
@@ -110,9 +115,9 @@ def main(gens=400, init_pop=300, hof_size=1):
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log, gen_best, durs = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
+    pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
                                 halloffame=hof, verbose=False)
-    return pop, log, hof, pset, gen_best, durs
+    return pop, log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":
     main()

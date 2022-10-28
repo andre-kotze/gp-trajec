@@ -1,9 +1,10 @@
 # wrapper for visualisation
 import datetime as dt
+from multiprocessing.util import log_to_stderr
 import time
 import argparse
 import logging
-#import json
+import yaml
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,19 +16,19 @@ from gptrajec import transform_2d
 from nsga_iii import main as nsga_main
 from deap import gp
 
+
+with open("config.yml", "r") as cfg:
+    config = yaml.load(cfg, Loader=yaml.FullLoader)
+
 START, END = journeys['bc-tc']
 GEOFENCES = clokes
-SEGMENTS = 100
 # threshold for fitnesses:
 THRESHOLD = 10000
-SAVE_PLOT = True
-SAVE_GIF = True
-SHORT_GIF = False
-GIF_VIEW_BUFFER = 0.15
+SAVE_PLOT, SAVE_GIF, SHORT_GIF, GIF_VIEW_BUFFER = config['visualisation'].values()
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
-X = np.linspace(0,1,SEGMENTS)
+x = np.linspace(0,1,config['defaults']['line_segments'])
 interval = (START.coords[0], END.coords[0])
 interval = np.array([list(ele) for ele in list(interval)])
 
@@ -64,8 +65,8 @@ def animate(i, gen_best, pset):
             return None, titl,
     # resolve and plot line
     ln_func = gp.compile(expr=gen_best[i], pset=pset)
-    y = np.array([ln_func(xc) for xc in X])
-    linelist = np.array([[xc,yc] for xc,yc in zip(X,y)])
+    y = np.array([ln_func(xc) for xc in x])
+    linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
     line = transform_2d(linelist, interval)
     opacity = alpha_func(i, len(gen_best))
     if gen_best[i].fitness.getValues()[0] > THRESHOLD:
@@ -83,7 +84,7 @@ def create_gif(gen_best, pset, name):
     # plot endpoints
     ax.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
     # plot barriers
-    for barrier in GEOFENCES:
+    for barrier in GEOFENCES.geoms:
         #ax.plot(*barrier.exterior.xy)
         ax.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
     #fig2, ax = plt.subplots()
@@ -116,13 +117,13 @@ def plot_log(log, hof, pset, name):
     ax4.set_title('Evaluation Time (s)', fontsize=10)
     ax1.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
     #for barrier in barrier_set:
-    for barrier in GEOFENCES:
+    for barrier in GEOFENCES.geoms:
         ax1.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
     
     for n, solution in enumerate(hof):
         ln_func = gp.compile(expr=solution, pset=pset)
-        y = np.array([ln_func(xc) for xc in X])
-        linelist = np.array([[xc,yc] for xc,yc in zip(X,y)])
+        y = np.array([ln_func(xc) for xc in x])
+        linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
         line = transform_2d(linelist, interval)
         ax1.plot(line[:,0], line[:,1], color='r')
 
@@ -139,8 +140,9 @@ def main(opt):
     init_time = time.perf_counter()
     ngen = opt.ngen
     logging.info(f'Starting...\nRunning for {ngen} generations')
-    pop, log, hof, pset, gen_best, durs = nsga_main(gens=ngen, hof_size=1)
-    logging.info(f'\n\nOptimal solution:\n\t{hof[0]}\n\tFitness: {hof[0].fitness.getValues()[0]}\n\tSize: {len(hof[0])}\n\tGen: {hof[0].generation}')
+    pop, log, hof, pset, gen_best, durs, msg = nsga_main(config, gens=ngen, hof_size=1)
+    logging.info(msg)
+    logging.info(f'\n\nOptimal solution:\n\t{hof[0]}\n\tFitness: {hof[0].fitness.getValues()[0]}\n\tSize: {len(hof[0])}\n\tGen: hof[0].generation')
     dur = time.perf_counter() - init_time
     logging.info(f'{len(gen_best)} generations completed in {dur:.2f}s ({dur/len(gen_best):.3f}s per generation)')
     logging.info(f"Computation times:\n\tPrep: {durs['prep']:.2f}\n\tEval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}")

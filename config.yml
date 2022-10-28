@@ -1,0 +1,17 @@
+dataset:
+  barriers: clokes
+  origin: bc
+  destination: tc
+visualisation:
+  png: True
+  gif: False
+  short_gif: False
+  gif_zoom: 0.15
+validation:
+  threshold: 1.5
+  no_intersect: False
+  invalidity_cost: 100
+  intersection_cost: 2
+defaults:
+  ngen: 250
+  line_segments: 100
