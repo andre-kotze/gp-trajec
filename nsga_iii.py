@@ -16,9 +16,12 @@ from test_data_2d import barrier_set, clokes, journeys, islas
 from gptrajec import transform_2d, eaTrajec
 
 SEGMENTS = 100
-ZERO_INTERSECT_TOLERANCE = False
+ZERO_INTERSECT_TOLERANCE = True
 START, END = journeys['bc-tc']
 GEOFENCES = clokes
+
+INVALIDITY_COST = 'length*100'
+INTERSECTION_COST = 'intersection_length**2'
 
 def validate(individual):
     # check intersection
@@ -33,7 +36,8 @@ def flexible_validate(individual):
     intersection = 0
     for barrier in GEOFENCES.geoms:
         intersection += barrier.intersection(individual).length
-    return intersection **2
+    #return intersection **2
+    return eval(INTERSECTION_COST, {}, {"intersection_length": intersection})
 
 def protectedDiv(left, right):
     try:
@@ -63,7 +67,7 @@ toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.ex
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
-def evalPath(individual, points):
+def evalPath(individual, points, no_intersect):
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
 
@@ -71,24 +75,26 @@ def evalPath(individual, points):
     y = [func(x) for x in points]
     line = transform_2d(numpy.column_stack((points, y)), [numpy.array(list(START.coords[0])), numpy.array(list(END.coords[0]))])
     line = LineString(line)
-    if ZERO_INTERSECT_TOLERANCE:
+    if no_intersect:
         valid = validate(line)
         if valid:
         # Evaluate the fitness (only consider length)
             fitness = line.length
         else:
         # Severely penalise invalid lines
-            fitness = 100 * line.length
+            #fitness = 100 * line.length    #PREVIOUS ONE
+            fitness = eval(INVALIDITY_COST, {}, {"length": line.length})
     else:
         fitness = flexible_validate(line) + line.length
 
     return fitness,
 
 
-# we change this line:
-#toolbox.register("evaluate", evalPath, points=[x/SEGMENTS for x in range(SEGMENTS)])
-# to this, for SEGMENTS segments:
-toolbox.register("evaluate", evalPath, points=numpy.linspace(0,1,SEGMENTS))
+# move these lines:
+#toolbox.register("evaluate", evalPath, points=numpy.linspace(0,1,SEGMENTS))
+#toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+#toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+# to main function, to allow parameterisation
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
@@ -98,11 +104,14 @@ toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 pool = multiprocessing.Pool()
 toolbox.register("map", pool.imap)
 
-toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+
 
 def main(cfg, gens=400, init_pop=300, hof_size=1):
     random.seed(151)
+
+    toolbox.register("evaluate", evalPath, points=numpy.linspace(0, 1, cfg['defaults']['line_segments']), no_intersect=cfg['validation']['no_intersect'])
+    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['defaults']['max_depth']))
+    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['defaults']['max_depth']))
 
     pop = toolbox.population(n=init_pop) # default 300
     hof = tools.HallOfFame(hof_size) # default 1

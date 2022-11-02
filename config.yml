@@ -1,12 +1,16 @@
 dataset:
   barriers: clokes
-  origin: bc
-  destination: tc
+  origin: a
+  destination: i
+logging:
+  save_log: True
+  record_result: True
 visualisation:
   png: True
   gif: False
   short_gif: False
   gif_zoom: 0.15
+  sol_txt: True
 validation:
   threshold: 1.5
   no_intersect: False
@@ -15,3 +19,10 @@ validation:
 defaults:
   ngen: 250
   line_segments: 100
+  pop_size: 300
+  cxpb: 0.5
+  mutpb: 0.1
+  max_depth: 17
+  seed: 151
+  multiproc: imap
+  chunksize: None

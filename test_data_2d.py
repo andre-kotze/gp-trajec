@@ -68,6 +68,10 @@ journeys = {
     'grc2': (Point(5533696,2073182), Point(5579206,1609699)),
     'lc-rc': (Point(5533696,2073182), Point(5579206,1609699))
 }
+pts = {}
+with fiona.open('./data/clove_lakes_pts.gpkg', layer='pts') as layer:
+    for feat in layer:
+        pts[feat['properties']['name']] = shape(feat['geometry'])
 
 example_route = []
 with fiona.open('./data/example_route.gpkg', layer='example_route') as layer:
@@ -80,3 +84,7 @@ with fiona.open('./data/example_space.gpkg', layer='example_space') as layer:
     for feat in layer:
         example_space.append(shape(feat['geometry']).geoms[0])
 example_space = MultiPolygon(example_space)
+
+barriers = {'clokes': clokes,
+            'islas': islas,
+            'example_space': example_space}
