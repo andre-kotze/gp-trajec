@@ -6,6 +6,7 @@ import operator
 import random
 import math
 import multiprocessing
+import signal
 
 import numpy
 from deap import base, creator, tools, gp
@@ -101,7 +102,10 @@ toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
 # NEW: add multiprocessing
-pool = multiprocessing.Pool()
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+pool = multiprocessing.Pool(None, init_worker)
 toolbox.register("map", pool.imap)
 
 
@@ -125,7 +129,7 @@ def main(cfg, gens=400, init_pop=300, hof_size=1):
     mstats.register("max", numpy.max)
 
     pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
-                                halloffame=hof, verbose=False)
+                                halloffame=hof, verbose=False, mp_pool=pool)
     return pop, log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 dataset:
   barriers: clokes
-  origin: a
-  destination: i
+  origin: d
+  destination: f
 logging:
   save_log: True
   record_result: True
@@ -13,7 +13,7 @@ visualisation:
   sol_txt: True
 validation:
   threshold: 1.5
-  no_intersect: False
+  no_intersect: True
   invalidity_cost: 100
   intersection_cost: 2
 defaults:

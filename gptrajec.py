@@ -1,5 +1,6 @@
 import random
 import time
+import signal
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -8,7 +9,7 @@ from tqdm import tqdm
 
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__):
+             halloffame=None, verbose=__debug__, mp_pool=None):
     """This is a modified version of eaSimple, the simplest evolutionary 
     algorithm as presented in chapter 7 of [Back2000]_.
 
@@ -107,7 +108,15 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
             # NEW: add multiprocessing in a different way:
-            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) # ToDo: except KeyboardInterrupt if during evaluate
+            try:
+                fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
+                # ToDo: except KeyboardInterrupt if during evaluate
+            except KeyboardInterrupt:
+                # kill workers
+                mp_pool.terminate()
+                mp_pool.join()
+                raise KeyboardInterrupt
+
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
                 ind.generation = gen
@@ -139,6 +148,8 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 # write to tqdm output instead:
                 tqdm.write(logbook.stream)
         except KeyboardInterrupt:
+            mp_pool.terminate()
+            mp_pool.join()
             exit_msg = f'Interrupted by user after {gen} generations'
             run.close()
             break

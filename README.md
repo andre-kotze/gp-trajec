@@ -23,8 +23,11 @@ Visualising the evolution:
 ## ToDo
 
 except Keyboard Interrupt during multiprocessing
+
+## Done
+
 auto-fill results/tests table
 
-## Notes
+## Didn't work
 
 imap_unordered doesn't work, unless Ind ID is passed back and forth

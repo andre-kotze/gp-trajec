@@ -6,6 +6,7 @@ import logging
 import yaml
 
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from test_data_2d import barriers, journeys, pts
@@ -26,6 +27,7 @@ with open("config.yml", "r") as cfg:
 
 START = pts[config['dataset']['origin']]
 END = pts[config['dataset']['destination']]
+START, END = journeys['bc-tc']
 GEOFENCES = barriers[config['dataset']['barriers']]
 
 ZERO_INT = config['validation']['no_intersect']
@@ -44,7 +46,7 @@ interval = np.array([list(ele) for ele in list(interval)])
 def parse_opts():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ngen', type=int, default=GENS, help='number of generations to evolve through')
-    #parser.add_argument('--nsegs', type=int, default=SEGMENTS, help='number of vertices (granularity) of the path')
+    parser.add_argument('--nsegs', type=int, default=SEGMENTS, help='number of vertices (granularity) of the path')
     parser.add_argument('--name', type=str, default=LABEL, help='project/experiment label')
     parser.add_argument('--no-log', action='store_true', default=not(LOG), help="don't save log file")
     parser.add_argument('--no-record', action='store_true', default=not(RECORD), help="don't record results to table")
@@ -123,41 +125,54 @@ def create_gif(gen_best, pset, name):
     dur = time.perf_counter() - init_time
     logging.info(f'GIF created in {round(dur, 2)}s')
 
-def plot_log(log, hof, pset, name):
+def plot_log(log, hof, pset, opts):
     logging.info('Plotting results...')
-    fig1, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2) # ToDo plot parameters and curve in 2 more subplots
+    #fig1, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2) # ToDo plot parameters and curve in 2 more subplots
+    fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
+    gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
     fig1.suptitle('Pathing Result', fontsize=10)
-    #fig1.title(name, y=1)
-    ax1.set_title('Hall of Fame', fontsize=10)
+    ax0 = fig1.add_subplot(gs[0,:-1])
+    ax0.set_title('Solution', fontsize=10)
+    ax1 = fig1.add_subplot(gs[0,-1])
+    ax1.set_title('Parameters', fontsize=10)
+    params = f'args:{yaml.dump(vars(opts), allow_unicode=True, default_flow_style=False, indent=4)}\n{yaml.dump(config, allow_unicode=True, default_flow_style=False, indent=4)}'
+    ax1.text(0.02, 0.5, params, verticalalignment='center', transform=ax1.transAxes, fontsize=8)
+    ax2 = fig1.add_subplot(gs[1,0])
+    ax3 = fig1.add_subplot(gs[1,1])
+    ax4 = fig1.add_subplot(gs[1,2])
+    ax5 = fig1.add_subplot(gs[1,3])
     ax2.set_title('Fitness (Pop Best)', fontsize=10)
     ax3.set_title('Solution Size (Pop Mean)', fontsize=10)
     ax4.set_title('Evaluation Time (s)', fontsize=10)
-    ax1.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
+    ax5.set_title('Curve', fontsize=10)
+    ax0.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
     #for barrier in barrier_set:
     for barrier in GEOFENCES.geoms:
-        ax1.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
+        ax0.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
     
     for n, solution in enumerate(hof):
         ln_func = gp.compile(expr=solution, pset=pset)
         y = np.array([ln_func(xc) for xc in x])
+        if n == 0:
+            ax5.plot(x,y)
         linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
         line = transform_2d(linelist, interval)
-        ax1.plot(line[:,0], line[:,1], color='r')
+        ax0.plot(line[:,0], line[:,1], color='r')
 
     ax2.plot(log.chapters["fitness"].select("min"))
     ax2.set_ylim([0, THRESHOLD])
     ax3.plot(log.chapters["size"].select("mean"))
     ax4.plot(log.select('dur'))
-    ax1.set_aspect('equal', 'box')
+    ax0.set_aspect('equal')#, 'box')
     fig1.tight_layout()
-    fig1.savefig(f'plot_out/{name}.png')
+    fig1.savefig(f'plot_out/{opts.name}.png')
     plt.show()
 
 def main(opt):
     init_time = time.perf_counter()
     ngen = opt.ngen
     logging.info(f'Running for {ngen} generations')
-    logging.info(f"\tfrom: {config['dataset']['origin']}\nto: {config['dataset']['destination']}\nin: {config['dataset']['barriers']}")
+    logging.info(f"\tfrom: {config['dataset']['origin']}\n\tto: {config['dataset']['destination']}\n\tin: {config['dataset']['barriers']}")
     pop, log, hof, pset, gen_best, durs, msg = nsga_main(config, gens=ngen, hof_size=1)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
@@ -206,7 +221,7 @@ def main(opt):
         df_log = pd.DataFrame(log)
         df_log.to_csv(f'logs/evolution/{opt.name}.csv', index=False)
     if not opt.no_plot:
-        plot_log(log, hof, pset, opt.name)
+        plot_log(log, hof, pset, opt)
     if opt.save_gif:
         create_gif(gen_best, pset, opt.name)
     logging.info('[FINISHED]')
