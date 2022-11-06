@@ -9,54 +9,43 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
-from test_data_2d import barriers, journeys, pts
+from data.test_data_2d import barriers, pts
 import numpy as np
 from gptrajec import transform_2d
 from shapely.geometry import LineString
-
 from nsga_iii import main as nsga_main
 from deap import gp
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 logging.info(f'BEEP BEEP BOOP Loading...')
 
-config = {}
-with open("config.yml", "r") as cfg:
-    ml_config = yaml.load(cfg, Loader=yaml.FullLoader)
-for cfg in ml_config.values():
-    config.update(cfg)
-
-# ToDo: create a kind of default parameter dict
-
-START = pts[config['origin']]
-END = pts[config['destination']]
-GEOFENCES = barriers[config['barriers']]
-
-ZERO_INT = config['no_intersect']
-# threshold for fitnesses:
-THRESHOLD = 10000
-SAVE_PLOT, SAVE_GIF, SHORT_GIF, GIF_VIEW_BUFFER, save_sol_txt = ml_config['visualisation'].values()
-LOG, RECORD, VERBOSE = ml_config['logging'].values()
-SEGMENTS = config['line_segments']
-GENS = config['ngen']
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-x = np.linspace(0,1,SEGMENTS)
-
 def parse_opts():
+    config = {}
+    with open("cfg/default.yml", "r") as cfg:
+        ml_config = yaml.load(cfg, Loader=yaml.FullLoader)
+    for cfg in ml_config.values():
+        config.update(cfg)
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ngen', type=int, default=GENS, help='number of generations to evolve through')
-    parser.add_argument('--nsegs', type=int, default=SEGMENTS, help='number of vertices (granularity) of the path')
+    parser.add_argument('--ngen', type=int, help='number of generations to evolve through')
+    parser.add_argument('--nsegs', type=int, help='number of vertices (granularity) of the path')
+    parser.add_argument('--cxpb', type=float, help='probability of two individuals reproducing')
+    parser.add_argument('--mutpb', type=float, help='probability of individual mutating')
     parser.add_argument('--name', type=str, default=LABEL, help='project/experiment label')
-    parser.add_argument('--no-log', action='store_true', default=not(LOG), help="don't save log file")
-    parser.add_argument('--no-record', action='store_true', default=not(RECORD), help="don't record results to table")
-    parser.add_argument('--no-plot', action='store_true', default=not(SAVE_PLOT), help="don't save plot of evolutionary process")
-    parser.add_argument('--save-gif', action='store_true', default=SAVE_GIF, help='save gif animation of evolutionary process (heavy)')
-    parser.add_argument('--short-gif', action='store_true', default=SHORT_GIF, help='save minimal gif animation showing stepwise improvement')
-    parser.add_argument('--gif_zoom', type=float, default=GIF_VIEW_BUFFER, help='set zoom level of gif animation')
+    parser.add_argument('--no-log', action='store_true', help="don't save log file")
+    parser.add_argument('--no-record', action='store_true', help="don't record results to table")
+    parser.add_argument('--no-plot', action='store_true', help="don't save plot of evolutionary process")
+    parser.add_argument('--save-gif', action='store_true', help='save gif animation of evolutionary process (heavy)')
+    parser.add_argument('--short-gif', action='store_true', help='save minimal gif animation showing stepwise improvement')
+    parser.add_argument('--gif_zoom', type=float, help='set zoom level of gif animation')
+    parser.add_argument('--hof-size', type=int, help='number of individuals to save in HallOfFame')
     #parser.add_argument('--save-pop', action='store_true', default=False, help='save the final population to file')
     #parser.add_argument('--resume-from', type=str, default=None, help='population file to resume from')
-    return parser.parse_args()
+    args = parser.parse_args()
+    args = {k:v for k,v in vars(args).items() if v}
+    config.update(args)
+    return argparse.Namespace(**config)
 
 def alpha_func(n, t):
     # return an opacity value according to a function
@@ -64,7 +53,7 @@ def alpha_func(n, t):
     # t = total generations
     return t ** (n/t) / t
 
-def animate(i, gen_best, pset, title, ax):
+def animate(i, gen_best, pset, x, threshold, interval, title, ax):
     titl = title.set_text(f'G: {i}/{len(gen_best)}')
     # first check if any improvement
     if i > 0:
@@ -74,51 +63,54 @@ def animate(i, gen_best, pset, title, ax):
     ln_func = gp.compile(expr=gen_best[i], pset=pset)
     y = np.array([ln_func(xc) for xc in x])
     linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
-    line = transform_2d(linelist, np.array([[START.x, START.y], [END.x ,END.y]]))
+    line = transform_2d(linelist, interval)
     opacity = alpha_func(i, len(gen_best))
-    if gen_best[i].fitness.getValues()[0] > THRESHOLD:
+    if gen_best[i].fitness.getValues()[0] > threshold:
         opacity=0
     line = ax.plot(line[:,0], line[:,1], color = 'red', lw=1, alpha=opacity)
     return line, titl,
 
-def create_gif(gen_best, pset, name):
+def create_gif(gen_best, pset, opts):
     init_time = time.perf_counter()
     logging.info('Animating GIF')
     fig2, ax = plt.subplots()
     title = ax.text(0.9, 0.9, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
                 transform=ax.transAxes, ha="center")
-    buff = GIF_VIEW_BUFFER
-    minx, miny, maxx, maxy = GEOFENCES.bounds
+    buff = opts.gif_zoom
+    minx, miny, maxx, maxy = barriers[opts.barriers].bounds
     ax.set_aspect('equal')
     buffx, buffy = buff*abs(minx - maxx), buff*abs(miny - maxy)
     ax.set_xlim(minx-buffx,maxx+buffx)
     ax.set_ylim(miny-buffy,maxy+buffy)
     # plot endpoints
-    ax.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
+    x, y = np.column_stack(opts.interval)
+    ax.scatter(x, y, color='k', marker='x')
     # plot barriers
-    for barrier in GEOFENCES.geoms:
+    for barrier in barriers[opts.barriers].geoms:
         ax.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
-    if SHORT_GIF:
+    if opts.short_gif:
         chckpts, chckpt_inds = [], []
         for n, ind in enumerate(gen_best):
             fit = ind.fitness.getValues()[0]
             if fit not in chckpts:
                 chckpts.append(fit)
                 chckpt_inds.append(ind)
-        ani = FuncAnimation(fig2, animate, fargs=(chckpt_inds, pset, title, ax), 
-                            interval=1000, blit=False, 
-                            repeat=True, frames=len(chckpt_inds)) 
+        logging.info(f'GIF has {len(chckpts)} frames')
+        ani = FuncAnimation(fig2, animate, 
+            fargs=(chckpt_inds, pset, opts.x, opts.threshold, opts.interval, title, ax), 
+            interval=1000, blit=False, repeat=True, frames=len(chckpt_inds)) 
     else:
-        ani = FuncAnimation(fig2, animate, fargs=(gen_best, pset, title, ax), 
-                            interval=100, blit=False, 
-                            repeat=True, frames=len(gen_best)) 
+        logging.info(f'GIF has {len(gen_best)} frames')
+        ani = FuncAnimation(fig2, animate, 
+            fargs=(gen_best, pset, opts.x, opts.threshold, opts.interval, title, ax), 
+            interval=100, blit=False, repeat=True, frames=len(gen_best)) 
                             #interval was 40, blit was True
-    ani.save(f"plot_out/{name}.gif", dpi=300, writer=PillowWriter(fps=25))
+    ani.save(f"plot_out/{opts.name}.gif", dpi=300, writer=PillowWriter(fps=25))
     plt.close(fig2)
     dur = time.perf_counter() - init_time
     logging.info(f'GIF created in {round(dur, 2)}s')
 
-def plot_log(log, hof, pset, opts):
+def plot_log(log, hof, pset, opts, params):
     logging.info('Plotting results...')
     fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
@@ -127,8 +119,7 @@ def plot_log(log, hof, pset, opts):
     ax0.set_title('Solution', fontsize=10)
     ax1 = fig1.add_subplot(gs[0,-1])
     ax1.set_title('Parameters', fontsize=10)
-    params = f'args:{yaml.dump(vars(opts), allow_unicode=True, default_flow_style=False, indent=4)}\n{yaml.dump(config, allow_unicode=True, default_flow_style=False, indent=4)}'
-    params += f'\nFitness: {hof[0].fitness.getValues()[0]:.2f}\nSize: {len(hof[0])}\nHeight: {hof[0].height}\nGeneration: {hof[0].generation}'
+    params += f'\nBest solution:\n Fitness: {hof[0].fitness.getValues()[0]:.2f}\n Size: {len(hof[0])}\n Height: {hof[0].height}\n Generation: {hof[0].generation}'
     ax1.text(0.02, 0.5, params, verticalalignment='center', transform=ax1.transAxes, fontsize=8)
     ax2 = fig1.add_subplot(gs[1,0])
     ax3 = fig1.add_subplot(gs[1,1])
@@ -138,22 +129,21 @@ def plot_log(log, hof, pset, opts):
     ax3.set_title('Solution Size (Pop Mean)', fontsize=10)
     ax4.set_title('Evaluation Time (s)', fontsize=10)
     ax5.set_title('Curve', fontsize=10)
-    ax0.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
-    #for barrier in barrier_set:
-    for barrier in GEOFENCES.geoms:
+    x, y = np.column_stack(opts.interval)
+    ax0.scatter(x, y, color='k', marker='x')
+    for barrier in barriers[opts.barriers].geoms:
         ax0.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
     
     for n, solution in enumerate(hof):
         ln_func = gp.compile(expr=solution, pset=pset)
-        y = np.array([ln_func(xc) for xc in x])
+        y = np.array([ln_func(xc) for xc in opts.x])
         if n == 0:
-            ax5.plot(x,y)
-        linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
-        line = transform_2d(linelist, np.array([[START.x, START.y], [END.x ,END.y]]))
-        ax0.plot(line[:,0], line[:,1], color='r')
-
+            ax5.plot(opts.x,y)
+        linelist = np.array([[xc,yc] for xc,yc in zip(opts.x,y)])
+        line = transform_2d(linelist, opts.interval)
+        ax0.plot(line[:,0], line[:,1], color='r', alpha=alpha_func(n+1, len(hof)))
     ax2.plot(log.chapters["fitness"].select("min"))
-    ax2.set_ylim([0, THRESHOLD])
+    ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"))
     ax4.plot(log.select('dur'))
     ax0.set_aspect('equal')#, 'box')
@@ -163,25 +153,31 @@ def plot_log(log, hof, pset, opts):
 
 def main(opt):
     init_time = time.perf_counter()
-    ngen = opt.ngen
-    logging.info(f'Running for {ngen} generations')
-    logging.info(f"\tfrom: {config['origin']}\n\tto: {config['destination']}\n\tin: {config['barriers']}")
-    pop, log, hof, pset, gen_best, durs, msg = nsga_main(config, gens=ngen, hof_size=1)
+    logging.info(f'Running for {opt.ngen} generations')
+    logging.info(f"\tfrom: {opt.origin}\n\tto: {opt.destination}\n\tin: {opt.barriers}")
+    params = yaml.dump(vars(opt), allow_unicode=True, default_flow_style=False, indent=4)
+    opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
+                            [pts[opt.destination].x, pts[opt.destination].y]])
+    crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
+    opt.threshold *= crow_dist
+    logging.info(f'Displacement is {crow_dist:.2f}, performance threshold set to {opt.threshold}')
+    opt.x = np.linspace(0,1,opt.nsegs)
+    pop, log, hof, pset, gen_best, durs, msg = nsga_main(opt)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
     logging.info(msg)
     logging.info(f'\n\nOptimal solution:\n\t{hof[0]}\n\tFitness: {optimum:.3f}\n\tSize: {len(hof[0])}\n\tGen: {hof[0].generation}')
     dur = time.perf_counter() - init_time
-    logging.info(f'{len(gen_best)} generations completed in {dur:.2f}s ({dur/gens_done:.3f}s per generation)')
+    logging.info(f'{gens_done} generations completed in {dur:.2f}s ({dur/gens_done:.3f}s per generation)')
     logging.info(f"Computation times:\n\tPrep: {durs['prep']:.2f}\n\tEval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}")
-    if save_sol_txt:
+    if opt.sol_txt:
         with open(f'logs/solutions/{opt.name}', 'w') as txt:
             txt.write(str(hof[0]))
     if not opt.no_record:
         solution_fx = gp.compile(expr=hof[0], pset=pset)
-        solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in x]))
+        solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in opt.x]))
         # OOPS: must actually run intersect in the same space...
-        valid_solution = not(any([solution_curve.intersects(barrier) for barrier in GEOFENCES.geoms]))
+        valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
         with open('logs/tests.csv', 'r+') as logtable:
             last_id = logtable.readlines()[-1].split(',')[0]
             logtable.write('\n')
@@ -192,17 +188,22 @@ def main(opt):
             logtable.write(','.join(str(i) for i in
                                     [int(last_id) + 1, 
                                     opt.name,
-                                    config['barriers'],
-                                    config['origin'],
-                                    config['destination'],
+                                    opt.barriers,
+                                    opt.origin,
+                                    opt.destination,
                                     opt.ngen,
-                                    len(gen_best),
-                                    int(ZERO_INT),
-                                    '*100' if ZERO_INT else '**2',
+                                    gens_done,
+                                    int(opt.no_intersect),
+                                    opt.invalidity_cost if opt.no_intersect else opt.intersection_cost,
                                     opt.nsegs,
                                     '0,1',
-                                    THRESHOLD,
-                                    '300,0.5,0.1,17,151,imap',
+                                    opt.threshold,
+                                    opt.pop_size,
+                                    opt.cxpb,
+                                    opt.mutpb,
+                                    opt.max_height,
+                                    opt.seed,
+                                    opt.multiproc,
                                     1,
                                     round(dur,2),
                                     round(dur/gens_done,2),
@@ -214,9 +215,9 @@ def main(opt):
         df_log = pd.DataFrame(log)
         df_log.to_csv(f'logs/evolution/{opt.name}.csv', index=False)
     if not opt.no_plot:
-        plot_log(log, hof, pset, opt)
+        plot_log(log, hof, pset, opt, params)
     if opt.save_gif:
-        create_gif(gen_best, pset, opt.name)
+        create_gif(gen_best, pset, opt)
     logging.info('[FINISHED]')
 
 if __name__ == "__main__":

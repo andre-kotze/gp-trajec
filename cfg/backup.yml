@@ -1,0 +1,31 @@
+dataset:
+  barriers: None
+  origin: None
+  destination: None
+logging:
+  no_log: True
+  no_record: True
+  verbose: False
+visualisation:
+  no_plot: True
+  save_gif: False
+  short_gif: False
+  gif_zoom: 0.15
+  sol_txt: False
+validation:
+  threshold: 2
+  no_intersect: True
+  invalidity_cost: length*100
+  intersection_cost: intersection**2
+defaults:
+  ngen: 300
+  nsegs: 100
+  pop_size: 300
+  cxpb: 0.5
+  mutpb: 0.1
+  max_height: 17
+  max_length: None
+  hof_size: 3
+  seed: 151
+  multiproc: None
+  chunksize: None

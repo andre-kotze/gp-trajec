@@ -1,14 +1,9 @@
 import random
 import time
-import signal
 
 import numpy as np
-from shapely.geometry import Polygon
 from deap import tools, algorithms
 from tqdm import tqdm
-
-def is_valid(ind):
-    return ind.fitness.values
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
              halloffame=None, verbose=__debug__, mp_pool=None):
@@ -142,7 +137,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             # NEW: select best of generation
             best = tools.selBest(population, 1)
             gen_best.extend(best)
-            run.set_description(f'Fitness: {best[0].fitness.getValues()[0]:.5f}')
+            run.set_description(f'Fitness: {best[0].fitness.getValues()[0]:.2f}')
 
             # Replace the current population by the offspring
             population[:] = offspring
@@ -154,7 +149,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
 
             # Append the current generation statistics to the logbook
             #record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), dur=dur, **record)
+            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
             if verbose:
                 #print(logbook.stream)
                 # write to tqdm output instead:
@@ -391,7 +386,7 @@ def transform_3d(line, dest, printing=False):
     if printing:
         print(transform_matrix)
     return line
-
+'''
 def faces_from_poly(polygon):
     # ToDo
     # check not empty
@@ -416,3 +411,4 @@ def read_geodata(geodata, h, base=0):
 
     barrier_meshes = []
     return barrier_meshes
+'''

@@ -1,15 +1,54 @@
+# How to use
+
+0. Install all required packages
+1. Update configuration in cfg/default.yml
+2. Pass additional arguments via command line (optional)
+3. Provide/check test data in data/test_data_2d.py and data/test_data_3d.py
+4. run main.py
+
 # Genetic programming to optimize 3D trajectories
 
  Finding the optimal trajectory in a 3D space is an ongoing research topic with applications such as optimizing an underwater route for a submarine robot or a flight route for drones. The problem becomes challenging as soon as the 3D space has barriers like danger zones or protected spaces. Those barriers can be modelled as features in GIS. A research gap to be closed is to combine the trajectory optimization techniques with GIS-modelled 3D barriers. Namely, the produced 3D-routes from the optimization techniques need a validation process to ensure that no barriers are crossed. Since many validations are necessary, one requirement is a fast computation.
 
 The aim of this thesis is to solve the trajectory optimization problem with the artificial intelligence technique called "Genetic Programming" (GP). The produced trajectories are to be converted into geographical lines, which are tested for any interference with GIS-modelled 3D barriers. 
 
-First order of business is to transform (a part of) any function so that it connects points A and B
-- Attempt 1: y = 3x + 2
-- Attempt 2: y = 2sin(x) + sin(4x) + 3cos(x) + sin(2x) + sin(x**2) - cos(6x)
-- Attempt 3: y = sin(x) + 0.8sin(4x) + cos(x) + 0.6sin(2x) + sin(x**2) - 1.2cos(6x)
+## Trajectory Optimisation
 
-## 2-dimensional:
+![Alt Text](demo/pathfinding.png)
+
+Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
+
+## Study Area
+
+![Alt Text](demo/2D.png)
+
+![Alt Text](demo/3D.png)
+
+## Genetic Programming
+
+Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/deap)
+
+![Alt Text](demo/Genetic_Program_Tree.png)
+
+![Alt Text](demo/Genetic_programming_subtree_crossover.gif)
+
+## Methodology
+
+![Alt Text](demo/meth_flowchart.png)
+
+## Solution Anatomy
+
+## Solution Transformation
+
+![Alt Text](demo/transform.png)
+
+![Alt Text](demo/rotate.png)
+
+## The Cost Function
+
+## Elitism
+
+## 2-Dimensional Results:
 
 250 generations for optimising the path through Clove Lakes subset:
 
@@ -19,15 +58,23 @@ Visualising the evolution:
 
 ![Alt Text](demo/20221007-142043.gif)
 
+![Alt Text](demo/6Nov_bc-tc_test.png)
 
-## ToDo
+### ToDo
 
-except Keyboard Interrupt during multiprocessing
+implement 3D
+plot 3D
+implement elitism
 
-## Done
+### Done
 
+transform function into 2D line and map onto 2D interval
+transform function into 3D line and map onto 3D interval
 auto-fill results/tests table
+except Keyboard Interrupt during multiprocessing
+load default config and update with passed args
+plot solution map and metrics
 
-## Didn't work
+### Didn't work
 
 imap_unordered doesn't work, unless Ind ID is passed back and forth

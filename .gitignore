@@ -6,7 +6,7 @@ __pycache__/
 *.so
 
 # Data
-data/
+#data/*.gpkg
 
 # Plots
 plot_out/
