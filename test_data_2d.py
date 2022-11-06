@@ -72,6 +72,7 @@ pts = {}
 with fiona.open('./data/clove_lakes_pts.gpkg', layer='pts') as layer:
     for feat in layer:
         pts[feat['properties']['name']] = shape(feat['geometry'])
+pts.update(journeys)
 
 example_route = []
 with fiona.open('./data/example_route.gpkg', layer='example_route') as layer:

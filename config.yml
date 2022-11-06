@@ -5,6 +5,7 @@ dataset:
 logging:
   save_log: True
   record_result: True
+  verbose: False
 visualisation:
   png: True
   gif: False
@@ -22,7 +23,8 @@ defaults:
   pop_size: 300
   cxpb: 0.5
   mutpb: 0.1
-  max_depth: 17
+  max_height: 8
+  max_length: 100
   seed: 151
   multiproc: imap
   chunksize: None

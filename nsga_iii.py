@@ -13,12 +13,12 @@ from deap import base, creator, tools, gp
 
 # for 2D implementation/testing we use shapely
 from shapely.geometry import LineString
-from test_data_2d import barrier_set, clokes, journeys, islas
+from test_data_2d import barrier_set, clokes, journeys, islas, pts
 from gptrajec import transform_2d, eaTrajec
 
-SEGMENTS = 100
 ZERO_INTERSECT_TOLERANCE = True
-START, END = journeys['bc-tc']
+#START, END = journeys['bc-tc']
+START, END = pts['d'], pts['f']
 GEOFENCES = clokes
 
 INVALIDITY_COST = 'length*100'
@@ -83,8 +83,9 @@ def evalPath(individual, points, no_intersect):
             fitness = line.length
         else:
         # Severely penalise invalid lines
-            #fitness = 100 * line.length    #PREVIOUS ONE
             fitness = eval(INVALIDITY_COST, {}, {"length": line.length})
+        # invalidate line completely
+            #fitness = False
     else:
         fitness = flexible_validate(line) + line.length
 
@@ -113,9 +114,12 @@ toolbox.register("map", pool.imap)
 def main(cfg, gens=400, init_pop=300, hof_size=1):
     random.seed(151)
 
-    toolbox.register("evaluate", evalPath, points=numpy.linspace(0, 1, cfg['defaults']['line_segments']), no_intersect=cfg['validation']['no_intersect'])
-    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['defaults']['max_depth']))
-    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['defaults']['max_depth']))
+    toolbox.register("evaluate", evalPath, 
+                    points=numpy.linspace(0, 1, cfg['line_segments']), 
+                    no_intersect=cfg['no_intersect'])
+                    #barriers = cfg[''])
+    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['max_height']))
+    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg['max_height']))
 
     pop = toolbox.population(n=init_pop) # default 300
     hof = tools.HallOfFame(hof_size) # default 1
@@ -128,8 +132,14 @@ def main(cfg, gens=400, init_pop=300, hof_size=1):
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 0.5, 0.1, gens, stats=mstats,
-                                halloffame=hof, verbose=False, mp_pool=pool)
+    pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 
+                                cxpb=0.5, 
+                                mutpb=0.1, 
+                                ngen=gens, 
+                                stats=mstats,
+                                halloffame=hof, 
+                                verbose=cfg['verbose'], 
+                                mp_pool=pool)
     return pop, log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":

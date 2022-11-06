@@ -20,28 +20,28 @@ from deap import gp
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 logging.info(f'BEEP BEEP BOOP Loading...')
 
+config = {}
 with open("config.yml", "r") as cfg:
-    config = yaml.load(cfg, Loader=yaml.FullLoader)
+    ml_config = yaml.load(cfg, Loader=yaml.FullLoader)
+for cfg in ml_config.values():
+    config.update(cfg)
 
 # ToDo: create a kind of default parameter dict
 
-START = pts[config['dataset']['origin']]
-END = pts[config['dataset']['destination']]
-START, END = journeys['bc-tc']
-GEOFENCES = barriers[config['dataset']['barriers']]
+START = pts[config['origin']]
+END = pts[config['destination']]
+GEOFENCES = barriers[config['barriers']]
 
-ZERO_INT = config['validation']['no_intersect']
+ZERO_INT = config['no_intersect']
 # threshold for fitnesses:
 THRESHOLD = 10000
-SAVE_PLOT, SAVE_GIF, SHORT_GIF, GIF_VIEW_BUFFER, save_sol_txt = config['visualisation'].values()
-LOG, RECORD = config['logging'].values()
-SEGMENTS = config['defaults']['line_segments']
-GENS = config['defaults']['ngen']
+SAVE_PLOT, SAVE_GIF, SHORT_GIF, GIF_VIEW_BUFFER, save_sol_txt = ml_config['visualisation'].values()
+LOG, RECORD, VERBOSE = ml_config['logging'].values()
+SEGMENTS = config['line_segments']
+GENS = config['ngen']
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 x = np.linspace(0,1,SEGMENTS)
-interval = (START.coords[0], END.coords[0])
-interval = np.array([list(ele) for ele in list(interval)])
 
 def parse_opts():
     parser = argparse.ArgumentParser()
@@ -64,13 +64,6 @@ def alpha_func(n, t):
     # t = total generations
     return t ** (n/t) / t
 
-#if SAVE_GIF:
-#    fig2, ax = plt.subplots()
-#    title = ax.text(0.9, 0.9, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
-#                transform=ax.transAxes, ha="center")
-#    buff = GIF_VIEW_BUFFER
-#    minx, miny, maxx, maxy = GEOFENCES.bounds
-
 def animate(i, gen_best, pset, title, ax):
     titl = title.set_text(f'G: {i}/{len(gen_best)}')
     # first check if any improvement
@@ -81,7 +74,7 @@ def animate(i, gen_best, pset, title, ax):
     ln_func = gp.compile(expr=gen_best[i], pset=pset)
     y = np.array([ln_func(xc) for xc in x])
     linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
-    line = transform_2d(linelist, interval)
+    line = transform_2d(linelist, np.array([[START.x, START.y], [END.x ,END.y]]))
     opacity = alpha_func(i, len(gen_best))
     if gen_best[i].fitness.getValues()[0] > THRESHOLD:
         opacity=0
@@ -104,9 +97,7 @@ def create_gif(gen_best, pset, name):
     ax.scatter([START.x, END.x],[START.y,END.y], color='k', marker='x')
     # plot barriers
     for barrier in GEOFENCES.geoms:
-        #ax.plot(*barrier.exterior.xy)
         ax.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
-    #fig2, ax = plt.subplots()
     if SHORT_GIF:
         chckpts, chckpt_inds = [], []
         for n, ind in enumerate(gen_best):
@@ -115,10 +106,12 @@ def create_gif(gen_best, pset, name):
                 chckpts.append(fit)
                 chckpt_inds.append(ind)
         ani = FuncAnimation(fig2, animate, fargs=(chckpt_inds, pset, title, ax), 
-                            interval=1000, blit=False, repeat=True, frames=len(chckpt_inds)) 
+                            interval=1000, blit=False, 
+                            repeat=True, frames=len(chckpt_inds)) 
     else:
         ani = FuncAnimation(fig2, animate, fargs=(gen_best, pset, title, ax), 
-                            interval=100, blit=False, repeat=True, frames=len(gen_best)) 
+                            interval=100, blit=False, 
+                            repeat=True, frames=len(gen_best)) 
                             #interval was 40, blit was True
     ani.save(f"plot_out/{name}.gif", dpi=300, writer=PillowWriter(fps=25))
     plt.close(fig2)
@@ -127,7 +120,6 @@ def create_gif(gen_best, pset, name):
 
 def plot_log(log, hof, pset, opts):
     logging.info('Plotting results...')
-    #fig1, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2) # ToDo plot parameters and curve in 2 more subplots
     fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
     fig1.suptitle('Pathing Result', fontsize=10)
@@ -136,6 +128,7 @@ def plot_log(log, hof, pset, opts):
     ax1 = fig1.add_subplot(gs[0,-1])
     ax1.set_title('Parameters', fontsize=10)
     params = f'args:{yaml.dump(vars(opts), allow_unicode=True, default_flow_style=False, indent=4)}\n{yaml.dump(config, allow_unicode=True, default_flow_style=False, indent=4)}'
+    params += f'\nFitness: {hof[0].fitness.getValues()[0]:.2f}\nSize: {len(hof[0])}\nHeight: {hof[0].height}\nGeneration: {hof[0].generation}'
     ax1.text(0.02, 0.5, params, verticalalignment='center', transform=ax1.transAxes, fontsize=8)
     ax2 = fig1.add_subplot(gs[1,0])
     ax3 = fig1.add_subplot(gs[1,1])
@@ -156,7 +149,7 @@ def plot_log(log, hof, pset, opts):
         if n == 0:
             ax5.plot(x,y)
         linelist = np.array([[xc,yc] for xc,yc in zip(x,y)])
-        line = transform_2d(linelist, interval)
+        line = transform_2d(linelist, np.array([[START.x, START.y], [END.x ,END.y]]))
         ax0.plot(line[:,0], line[:,1], color='r')
 
     ax2.plot(log.chapters["fitness"].select("min"))
@@ -172,7 +165,7 @@ def main(opt):
     init_time = time.perf_counter()
     ngen = opt.ngen
     logging.info(f'Running for {ngen} generations')
-    logging.info(f"\tfrom: {config['dataset']['origin']}\n\tto: {config['dataset']['destination']}\n\tin: {config['dataset']['barriers']}")
+    logging.info(f"\tfrom: {config['origin']}\n\tto: {config['destination']}\n\tin: {config['barriers']}")
     pop, log, hof, pset, gen_best, durs, msg = nsga_main(config, gens=ngen, hof_size=1)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
@@ -199,9 +192,9 @@ def main(opt):
             logtable.write(','.join(str(i) for i in
                                     [int(last_id) + 1, 
                                     opt.name,
-                                    config['dataset']['barriers'],
-                                    config['dataset']['origin'],
-                                    config['dataset']['destination'],
+                                    config['barriers'],
+                                    config['origin'],
+                                    config['destination'],
                                     opt.ngen,
                                     len(gen_best),
                                     int(ZERO_INT),

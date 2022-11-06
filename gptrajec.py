@@ -7,6 +7,8 @@ from shapely.geometry import Polygon
 from deap import tools, algorithms
 from tqdm import tqdm
 
+def is_valid(ind):
+    return ind.fitness.values
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
              halloffame=None, verbose=__debug__, mp_pool=None):
@@ -70,7 +72,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     """
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals', 'dur'] + (stats.fields if stats else [])
-
+    pop_size = len(population)
     # NEW: record best of generation
     gen_best = []
     # NEW: record durations of different steps
@@ -83,6 +85,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
 
+    # NEW: discard invalid individuals
+    #population = list(filter(is_valid, population))
+
     if halloffame is not None:
         halloffame.update(population)
 
@@ -94,11 +99,14 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     # NEW: Instantiate tqdm outside for control of description
     run = tqdm(range(1, ngen + 1))
     # Begin the generational process
+    interrupted = False
     for gen in run:
         try:
             t0 = time.perf_counter()
+            # NEW: fill population after discarding invalids
+            #population.extend(toolbox.population(pop_size - len(population)))
             # Select the next generation individuals
-            offspring = toolbox.select(population, len(population))
+            offspring = toolbox.select(population, pop_size)
 
             # Vary the pool of individuals
             offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
@@ -110,16 +118,20 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             # NEW: add multiprocessing in a different way:
             try:
                 fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
-                # ToDo: except KeyboardInterrupt if during evaluate
+                # ToDo: except KeyboardInterrupt if during evaluate [check]
             except KeyboardInterrupt:
                 # kill workers
                 mp_pool.terminate()
                 mp_pool.join()
-                raise KeyboardInterrupt
+                #raise KeyboardInterrupt
+                interrupted = True
 
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
                 ind.generation = gen
+            
+            # NEW: discard invalid individuals
+            #offspring = filter(is_valid, offspring)
 
             t2 = time.perf_counter()
             durs['eval'].append(t2 - t1)
@@ -141,12 +153,14 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             durs['trans'].append(t3 - t2)
 
             # Append the current generation statistics to the logbook
-            record = stats.compile(population) if stats else {}
+            #record = stats.compile(population) if stats else {}
             logbook.record(gen=gen, nevals=len(invalid_ind), dur=dur, **record)
             if verbose:
                 #print(logbook.stream)
                 # write to tqdm output instead:
                 tqdm.write(logbook.stream)
+            if interrupted:
+                raise KeyboardInterrupt
         except KeyboardInterrupt:
             mp_pool.terminate()
             mp_pool.join()
