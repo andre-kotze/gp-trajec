@@ -14,6 +14,9 @@ plot_out/
 # Logs
 logs/
 
+# Testing
+test/
+
 # Notebooks
 .ipynb_checkpoints/
 

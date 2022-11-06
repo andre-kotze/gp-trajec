@@ -12,11 +12,11 @@
 
 The aim of this thesis is to solve the trajectory optimization problem with the artificial intelligence technique called "Genetic Programming" (GP). The produced trajectories are to be converted into geographical lines, which are tested for any interference with GIS-modelled 3D barriers. 
 
+Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
+
 ## Trajectory Optimisation
 
 ![Alt Text](demo/pathfinding.png)
-
-Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
 
 ## Study Area
 
@@ -65,6 +65,9 @@ Visualising the evolution:
 implement 3D
 plot 3D
 implement elitism
+implement stop criteria
+find out why fitness doesn't plot
+find out why size avg is constant
 
 ### Done
 
