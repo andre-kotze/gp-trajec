@@ -6,7 +6,7 @@ from deap import tools, algorithms
 from tqdm import tqdm
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__, mp_pool=None):
+             halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
     """This is a modified version of eaSimple, the simplest evolutionary 
     algorithm as presented in chapter 7 of [Back2000]_.
 
@@ -85,6 +85,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
 
     if halloffame is not None:
         halloffame.update(population)
+        hof_size = len(halloffame.items) if halloffame.items else 0
+    elif elitism:
+        raise ValueError('implementing elitism requires non-empty hof parameter')
 
     record = stats.compile(population) if stats else {}
     logbook.record(gen=0, nevals=len(invalid_ind), dur=0, **record)
@@ -101,7 +104,11 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             # NEW: fill population after discarding invalids
             #population.extend(toolbox.population(pop_size - len(population)))
             # Select the next generation individuals
-            offspring = toolbox.select(population, pop_size)
+            # NEW: if using elitism, inject hof into offspring
+            if elitism:
+                offspring = toolbox.select(population, pop_size - hof_size)
+            else:
+                offspring = toolbox.select(population, pop_size)
 
             # Vary the pool of individuals
             offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
@@ -125,6 +132,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 ind.fitness.values = fit
                 ind.generation = gen
             
+            #NEW: elitism: inject hof into population:
+            if elitism:
+                offspring.extend(halloffame.items)
             # NEW: discard invalid individuals
             #offspring = filter(is_valid, offspring)
 
@@ -148,7 +158,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             durs['trans'].append(t3 - t2)
 
             # Append the current generation statistics to the logbook
-            #record = stats.compile(population) if stats else {}
+            record = stats.compile(population) if stats else {}
             logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
             if verbose:
                 #print(logbook.stream)
@@ -167,84 +177,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
     durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
     return population, logbook, gen_best, durs, exit_msg
 
-
-def transform_2d_old(line, dest, printing=False):
-    '''
-    Takes a line and transforms it to
-    map onto the interval dest, i.e. 
-    between a start and end point
-    line: numpy array of coordinate list pairs
-    dest: list of coordinate list pairs of length 2
-    '''
-    # Endpoints:
-    ((ax, ay), (bx, by)) = dest
-    (px, py), (qx, qy) = line[0], line[-1]
-
-    # TRANSLATION:
-    # find deviance from point a
-    dx = px - ax
-    dy = py - ay
-    if printing:
-        print(f'Translation: dx = {dx}, dy = {dy}')
-
-    line[:,0] -= dx
-    line[:,1] -= dy
-    
-    # SCALING:
-    line_dist = np.linalg.norm(line[-1] - line[0])
-    dest_dist = np.linalg.norm(dest[-1] - dest[0])
-    scale_factor = dest_dist / line_dist
-    if printing:
-        print(f'Scale factor: {scale_factor}\nLine: {line_dist}\nDist: {dest_dist}')
-    scale_matrix = np.array([[scale_factor,0,0],
-                            [0,scale_factor,0],
-                            [0,0,1]])
-    if printing:
-        print(scale_matrix)
-    scaled = np.array([np.array(coord_set).dot(scale_matrix) for coord_set in zip(line[:,0], line[:,1], np.zeros(len(line)))])
-    # ROTATION:
-    line_angle = np.arctan2(qy - py, qx - px)
-    dest_angle = np.arctan2(by - ay, bx - ax)
-    theta = dest_angle - line_angle
-    # negate, to rotate c-clockwise
-    theta *= -1
-    if printing:
-        print(f'Delta theta: {np.rad2deg(theta)}°')
-    c = np.cos(theta)
-    d = np.sin(theta)
-    rotation_matrix = np.array([[c,-d,0],
-                                [d,c,0],
-                                [0,0,1]])
-    a = ax
-    b = ay
-    prerotation_translation_matrix = np.array([[1,0,-a],
-                                                [0,1,-b],
-                                                [0,0,1]])
-    postrotation_translation_matrix = np.array([[1,0,a],
-                                                [0,1,b],
-                                                [0,0,1]])
-    if printing:
-        print(f'prerotation: \n{prerotation_translation_matrix}')
-        print(f'rotation: \n{rotation_matrix}')
-        print(f'postrotation: \n{postrotation_translation_matrix}')
-
-    prerotation = scaled.dot(prerotation_translation_matrix)
-    rotation = prerotation.dot(rotation_matrix)
-    postrotation = rotation.dot(postrotation_translation_matrix)
-    if printing:
-        print(scaled[:5])
-        print(prerotation[:5])
-        print(rotation[:5])
-        print(postrotation[:5])
-    output = postrotation
-    # TRANSFORMATION:
-    transform_matrix = scale_matrix @ rotation_matrix
-    line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], np.ones(len(line)))])
-    #if printing:
-    #    print(transform_matrix)
-    return line # numpy array like [[x,y,1],[x,y,1]...]
-
-def transform_2d(line, dest, printing=False):
+def transform_2d(line, dest):
     '''
     Takes a line and transforms it to
     map onto the interval dest, i.e. 
@@ -257,10 +190,7 @@ def transform_2d(line, dest, printing=False):
     (px, py), (qx, qy) = line[0], line[-1]
 
     # TRANSLATION TO ORIGIN:
-    # find deviance from ORIGIN
-    if printing:
-        print(f'Translation: dx = {px}, dy = {py}')
-
+    # find deviation from ORIGIN
     line[:,0] -= px
     line[:,1] -= py
     # now the line originates at the origin
@@ -269,21 +199,16 @@ def transform_2d(line, dest, printing=False):
     line_dist = np.linalg.norm(line[-1] - line[0])
     dest_dist = np.linalg.norm(dest[-1] - dest[0])
     scale_factor = dest_dist / line_dist
-    if printing:
-        print(f'Scale factor: {scale_factor}\nLine: {line_dist}\nDist: {dest_dist}')
     scale_matrix = np.array([[scale_factor,0,0],
                             [0,scale_factor,0],
                             [0,0,1]])
-    if printing:
-        print(scale_matrix)
+
     # ROTATION:
     line_angle = np.arctan2(qy - py, qx - px)
     dest_angle = np.arctan2(by - ay, bx - ax)
     theta = dest_angle - line_angle
     # negate, to rotate c-clockwise
     theta *= -1
-    if printing:
-        print(f'Delta theta: {np.rad2deg(theta)}°')
     c = np.cos(theta)
     d = np.sin(theta)
     rotation_matrix = np.array([[c,-d,0],
@@ -293,14 +218,11 @@ def transform_2d(line, dest, printing=False):
     # TRANSFORMATION:
     transform_matrix = scale_matrix @ rotation_matrix
     line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], np.zeros(len(line)))])
-    #if printing:
-    #    print(transform_matrix)
+
     # TRANSLATE TO DEST
     # find deviance from Point a
     dx = line[0,0] - ax
     dy = line[0,1] - ay
-    if printing:
-        print(f'Final translation: dx = {dx}, dy = {dy}')
 
     line[:,0] -= dx
     line[:,1] -= dy
@@ -318,74 +240,142 @@ def transform_3d(line, dest, printing=False):
     ((ax, ay, az), (bx, by, bz)) = dest
     (px, py, pz), (qx, qy, qz) = line[0], line[-1]
 
-    # TRANSLATION:
-    # find deviance from point a
-    dx = px - ax
-    dy = py - ay
-    dz = pz - az
-    if printing:
-        print(f'Translation: dx = {dx}, dy = {dy}, dz = {dz}')
-    line[:,0] -= dx
-    line[:,1] -= dy
-    line[:,2] -= dz
+    # TRANSLATION TO ORIGIN:
+    # find deviance from ORIGIN
+    line[:,0] -= px
+    line[:,1] -= py
+    line[:,2] -= pz
+    # now the line originates at the origin
     
     # SCALING:
     line_dist = np.linalg.norm(line[-1] - line[0])
     dest_dist = np.linalg.norm(dest[-1] - dest[0])
     scale_factor = dest_dist / line_dist
     if printing:
-        print(f'Scale factor: {scale_factor}\nLine: {line_dist}\nDist: {dest_dist}')
+        print(f'Scale factor: {scale_factor:.2f}\nLine: {line_dist:.2f}\nDist: {dest_dist:.2f}')
     scale_matrix = np.array([[scale_factor,0,0,0],
                             [0,scale_factor,0,0],
                             [0,0,scale_factor,0],
                             [0,0,0,1]])
+    scale_matrix = np.array([[scale_factor,0,0],
+                            [0,scale_factor,0],
+                            [0,0,scale_factor]])
+
+    post_scale = np.array([
+        np.array(coord_set).dot(scale_matrix) 
+        for coord_set in zip(line[:,0], line[:,1], line[:,2])])
+    post_scale = post_scale[:,0:3]
+
+    
     # ROTATION:
     # = = = = = about z:
     line_angle = np.arctan2(qy - py, qx - px)
     dest_angle = np.arctan2(by - ay, bx - ax)
     theta = dest_angle - line_angle
+    # negate, to rotate c-clockwise
     theta *= -1
     if printing:
-        print(f'Delta theta about z-axis: {np.rad2deg(theta)}°')
+        #print(f'About z-axis: {line_angle=}, {dest_angle=}')
+        print(f'Delta theta about z-axis: {np.rad2deg(theta):.2f}°')
     c = np.cos(theta)
     s = np.sin(theta)
-    rot_mat_z = np.array([[c,-s,0,0],
-                        [s,c,0,0],
+    rot_mat_z = np.array([[c,s,0,0],
+                        [-s,c,0,0],
                         [0,0,1,0],
                         [0,0,0,1]])
+
+    rot_mat_z = np.array([[c,-s,0],
+                        [s,c,0],
+                        [0,0,1]])
+
+    post_z = post_scale.dot(rot_mat_z)
+    # transform the endpoint, before the next rotation:
+    #(qx, qy, qz, _) = np.array([qx, qy, qz, 1]).dot(rot_mat_z)
+    (qx, qy, qz) = post_z[-1]
+
+
+
     # = = = = = about y:
     line_angle = np.arctan2(qx - px, qz - pz)
     dest_angle = np.arctan2(bx - ax, bz - az)
     theta = dest_angle - line_angle
     theta *= -1
     if printing:
-        print(f'Delta theta about y-axis: {np.rad2deg(theta)}°')
+        #print(f'About y-axis: {line_angle=}, {dest_angle=}')
+        print(f'Delta theta about y-axis: {np.rad2deg(theta):.2f}°')
     c = np.cos(theta)
     s = np.sin(theta)
-    rot_mat_y = np.array([[c,0,-s,0],
-                        [0,1,0,0],
-                        [s,0,c,0],
+    rot_mat_y = np.array([[-s,c,0,0],
+                        [0,0,1,0],
+                        [c,s,0,0],
                         [0,0,0,1]])
+    rot_mat_y = np.array([[c,0,s],
+                        [0,1,0],
+                        [-s,0,c]])
+
+
+    post_y = post_z.dot(rot_mat_y)
+    # transform the endpoint, before the next rotation:
+    #(qx, qy, qz, _) = np.array([qx, qy, qz, 1]).dot(rot_mat_y)
+    (qx, qy, qz) = post_y[-1]
+
+
     # = = = = = about x:
     line_angle = np.arctan2(qz - pz, qy - py)
     dest_angle = np.arctan2(bz - az, by - ay)
     theta = dest_angle - line_angle
     theta *= -1
     if printing:
-        print(f'Delta theta about x-axis: {np.rad2deg(theta)}°')
+        #print(f'About x-axis: {line_angle=}, {dest_angle=}')
+        print(f'Delta theta about x-axis: {np.rad2deg(theta):.2f}°')
     c = np.cos(theta)
     s = np.sin(theta)
-    rot_mat_x = np.array([[1,0,0,0],
-                        [0,c,s,0],
-                        [0,-s,c,0],
+    rot_mat_x = np.array([[0,0,1,0],
+                        [c,s,0,0],
+                        [-s,c,0,0],
                         [0,0,0,1]])
+    rot_mat_x = np.array([[1,0,0],
+                        [0,c,-s],
+                        [0,s,c]])
+
+
+
+
+    post_x = post_y.dot(rot_mat_x)
+    #(qx, qy, qz, _) = post_x[-1]
+
+
+
+
+
+
     rotation_matrix = rot_mat_z @ rot_mat_y @ rot_mat_x
+    
+    #unit_vector = np.array([])
+    #rotation_matrix = np.array([])
+
+
+    #line = post_x.copy()
+
+
     # TRANSFORMATION:
     transform_matrix = scale_matrix @ rotation_matrix
-    line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], np.ones(len(line)))])
+    line = np.array([np.array(coord_set).dot(transform_matrix) for coord_set in zip(line[:,0], line[:,1], line[:,2])])
+    
+    # TRANSLATE TO DEST
+    # find deviance from Point a
+    dx = line[0,0] - ax
+    dy = line[0,1] - ay
+    dz = line[0,2] - az
+
+    line[:,0] -= dx
+    line[:,1] -= dy
+    line[:,2] -= dz
+
     if printing:
         print(transform_matrix)
-    return line
+    return line, [post_scale, post_z, post_y, post_x]
+    # numpy array like [[x,y,z,1],[x,y,z,1],...]
 '''
 def faces_from_poly(polygon):
     # ToDo

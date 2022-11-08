@@ -16,9 +16,11 @@ Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohi
 
 ## Trajectory Optimisation
 
-![Alt Text](demo/pathfinding.png)
+<img src="demo/pathfinding.png" width="50%">
 
 ## Study Area
+
+From [CityOfNewYork/nyc-geo-metadata](https://github.com/CityOfNewYork/nyc-geo-metadata)
 
 ![Alt Text](demo/2D.png)
 
@@ -36,6 +38,39 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 
 ![Alt Text](demo/meth_flowchart.png)
 
+### Parameters
+
+| Parameter | Type | Description |
+| ----------- | ----------- | ----------- |
+| barriers | `str` | geofences dataset |
+| origin | `str` | start point |
+| destination | `str` | end point |
+| no_log | `Bool` | don't save GP log |
+| no_record | `Bool` | don't record results to table |
+| verbose | `Bool` | output progress to console |
+| no_plot | `Bool` | don't save results png |
+| save_gif | `Bool` | save results gif |
+| short_gif | `Bool` | only show stepwise improvement in gif |
+| gif_zoom | `float` | zoom level for gif |
+| sol_txt | `Bool` | save solution as txt |
+| threshold | `float` | max fitness to plot (factor of direct distance) |
+| no_intersect | `Bool` | invalidate any intersecting lines |
+| invalidity_cost | length*100 | penalty for intersection with `no_intersect=True` |
+| intersection_cost | intersection**2 | penalty for intersection with `no_intersect=False` |
+| ngen | `int` | number of generations to evolve through |
+| nsegs | `int` | number of line vertices to use in solution validation |
+| pop_size | `int` | population size to use in GP |
+| cxpb | `float` | probability of two individuals reproducing |
+| mutpb | `float` | probability of an individual mutating |
+| max_height | `int` | height limit for function trees |
+| max_length | `int` | length limit for function trees |
+| elitism | `Bool` | implement elitism |
+| patience | `int` | number of generations to wait for improvement |
+| hof_size | `int` | number of individuals to save in HallOfFame |
+| seed | `int` | random seed |
+| multiproc | `imap`,`map`,`None` | multiprocessing to use |
+| chunksize | `int` or `None` | chunksize parameter for multiprocessing |
+
 ## Solution Anatomy
 
 ## Solution Transformation
@@ -44,9 +79,21 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 
 ![Alt Text](demo/rotate.png)
 
+![Alt Text](demo/3d_trans.png)
+
 ## The Cost Function
 
+At present, validation is dependent on non-intersection with barriers, and fitness is a single value: the length of the path.
+
+To be considered later:
+1. Path variation in z-dimension (less=better)
+2. Solution size (smaller=better)
+3. Solution evolve-time (earlier=better)
+
 ## Elitism
+
+Elitism can be activated via the `elitism` parameter.
+The number of elite individuals injected into the subsequent generation is determined by the HallOfFame size.
 
 ## 2-Dimensional Results:
 
@@ -62,22 +109,22 @@ Visualising the evolution:
 
 ### ToDo
 
-implement 3D
-plot 3D
-implement elitism
-implement stop criteria
-find out why fitness doesn't plot
-find out why size avg is constant
+- implement 3D
+- plot 3D
+- implement stop criteria
+- fix 3D rotation matrices in docs
+- fix 2D rotation matrix in gptrajec.p
 
 ### Done
 
-transform function into 2D line and map onto 2D interval
-transform function into 3D line and map onto 3D interval
-auto-fill results/tests table
-except Keyboard Interrupt during multiprocessing
-load default config and update with passed args
-plot solution map and metrics
+- transform function into 2D line and map onto 2D interval
+- transform function into 3D line and map onto 3D interval
+- auto-fill results/tests table
+- except Keyboard Interrupt during multiprocessing
+- load default config and update with passed args
+- plot solution map and metrics
+- implement elitism
 
 ### Didn't work
 
-imap_unordered doesn't work, unless Ind ID is passed back and forth
+- imap_unordered doesn't work, unless Ind ID is passed back and forth

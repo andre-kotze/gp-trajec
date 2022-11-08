@@ -129,7 +129,8 @@ def main(cfg):
                                 stats=mstats,
                                 halloffame=hof, 
                                 verbose=cfg.verbose, 
-                                mp_pool=pool)
+                                mp_pool=pool,
+                                elitism=cfg.elitism)
     return pop, log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":

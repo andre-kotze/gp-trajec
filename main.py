@@ -20,6 +20,9 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 logging.info(f'BEEP BEEP BOOP Loading...')
 
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+GF_COL = 'c'
+LN_COL = 'k'
+PT_COL = 'r'
 
 def parse_opts():
     config = {}
@@ -67,7 +70,7 @@ def animate(i, gen_best, pset, x, threshold, interval, title, ax):
     opacity = alpha_func(i, len(gen_best))
     if gen_best[i].fitness.getValues()[0] > threshold:
         opacity=0
-    line = ax.plot(line[:,0], line[:,1], color = 'red', lw=1, alpha=opacity)
+    line = ax.plot(line[:,0], line[:,1], color=LN_COL, lw=1, alpha=opacity)
     return line, titl,
 
 def create_gif(gen_best, pset, opts):
@@ -84,10 +87,10 @@ def create_gif(gen_best, pset, opts):
     ax.set_ylim(miny-buffy,maxy+buffy)
     # plot endpoints
     x, y = np.column_stack(opts.interval)
-    ax.scatter(x, y, color='k', marker='x')
+    ax.scatter(x, y, color=PT_COL, marker='x')
     # plot barriers
     for barrier in barriers[opts.barriers].geoms:
-        ax.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
+        ax.fill(*barrier.exterior.xy, alpha=1, fc=GF_COL, ec='none')
     if opts.short_gif:
         chckpts, chckpt_inds = [], []
         for n, ind in enumerate(gen_best):
@@ -130,9 +133,9 @@ def plot_log(log, hof, pset, opts, params):
     ax4.set_title('Evaluation Time (s)', fontsize=10)
     ax5.set_title('Curve', fontsize=10)
     x, y = np.column_stack(opts.interval)
-    ax0.scatter(x, y, color='k', marker='x')
+    ax0.scatter(x, y, color=PT_COL, marker='x')
     for barrier in barriers[opts.barriers].geoms:
-        ax0.fill(*barrier.exterior.xy, alpha=0.5, fc='g', ec='none')
+        ax0.fill(*barrier.exterior.xy, alpha=1, fc=GF_COL, ec='none')
     
     for n, solution in enumerate(hof):
         ln_func = gp.compile(expr=solution, pset=pset)
@@ -141,11 +144,11 @@ def plot_log(log, hof, pset, opts, params):
             ax5.plot(opts.x,y)
         linelist = np.array([[xc,yc] for xc,yc in zip(opts.x,y)])
         line = transform_2d(linelist, opts.interval)
-        ax0.plot(line[:,0], line[:,1], color='r', alpha=alpha_func(n+1, len(hof)))
-    ax2.plot(log.chapters["fitness"].select("min"))
+        ax0.plot(line[:,0], line[:,1], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
+    ax2.plot(log.chapters["fitness"].select("min"), color='g')
     ax2.set_ylim([0, opts.threshold])
-    ax3.plot(log.chapters["size"].select("mean"))
-    ax4.plot(log.select('dur'))
+    ax3.plot(log.chapters["size"].select("mean"), color='y')
+    ax4.plot(log.select('dur'), color='b')
     ax0.set_aspect('equal')#, 'box')
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
@@ -160,7 +163,7 @@ def main(opt):
                             [pts[opt.destination].x, pts[opt.destination].y]])
     crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
     opt.threshold *= crow_dist
-    logging.info(f'Displacement is {crow_dist:.2f}, performance threshold set to {opt.threshold}')
+    logging.info(f'Displacement is {crow_dist:.2f}, performance threshold set to {opt.threshold:.2f}')
     opt.x = np.linspace(0,1,opt.nsegs)
     pop, log, hof, pset, gen_best, durs, msg = nsga_main(opt)
     gens_done = len(gen_best)
@@ -179,6 +182,7 @@ def main(opt):
         # OOPS: must actually run intersect in the same space...
         valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
         with open('logs/tests.csv', 'r+') as logtable:
+            # ToDo: start fresh log if none exists
             last_id = logtable.readlines()[-1].split(',')[0]
             logtable.write('\n')
             # ID,NAME,GEOFENCES,ORIGIN,DESTINATION,GENS_PLANNED,GENS,ZERO_INT,

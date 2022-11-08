@@ -1,9 +1,9 @@
 dataset:
   barriers: clokes
-  origin: b
-  destination: g
+  origin: d
+  destination: h
 logging:
-  no_log: True
+  no_log: False
   no_record: False
   verbose: False
 visualisation:
@@ -11,7 +11,7 @@ visualisation:
   save_gif: True
   short_gif: True
   gif_zoom: 0.15
-  sol_txt: False
+  sol_txt: True
 validation:
   threshold: 2
   no_intersect: True
@@ -23,8 +23,10 @@ defaults:
   pop_size: 300
   cxpb: 0.5
   mutpb: 0.1
-  max_height: 12
-  max_length: 120
+  max_height: 8
+  max_length: 80
+  elitism: True
+  patience: 100
   hof_size: 3
   seed: 151
   multiproc: imap
