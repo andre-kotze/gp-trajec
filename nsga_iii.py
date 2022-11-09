@@ -63,7 +63,7 @@ def evalPath(params, individual):
     func = toolbox.compile(expr=individual)
 
     # Validate the line (only requirement is non-intersection)
-    x = numpy.linspace(0, 1, params['nsegs'])
+    x = params['x']
     y = [func(p) for p in x]
     line = transform_2d(numpy.column_stack((x, y)), params['interval'])
     line = LineString(line)
@@ -97,7 +97,7 @@ toolbox.register("map", pool.imap)
 def main(cfg):
     random.seed(cfg.seed)
 
-    eval_args = {'nsegs' : cfg.nsegs,
+    eval_args = {'x' : cfg.x,
                 'barriers' : cfg.barriers,
                 'interval' : cfg.interval,
                 'no_intersect' : cfg.no_intersect,

@@ -147,7 +147,7 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             # NEW: select best of generation
             best = tools.selBest(population, 1)
             gen_best.extend(best)
-            run.set_description(f'Fitness: {best[0].fitness.getValues()[0]:.2f}')
+            run.set_description(f'# Fitness: {best[0].fitness.getValues()[0]:.2f}')
 
             # Replace the current population by the offspring
             population[:] = offspring
@@ -161,19 +161,17 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             record = stats.compile(population) if stats else {}
             logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
             if verbose:
-                #print(logbook.stream)
-                # write to tqdm output instead:
                 tqdm.write(logbook.stream)
             if interrupted:
                 raise KeyboardInterrupt
         except KeyboardInterrupt:
             mp_pool.terminate()
             mp_pool.join()
-            exit_msg = f'Interrupted by user after {gen} generations'
+            exit_msg = f'# Completed {gen} of {ngen} generations'
             run.close()
             break
         else:
-            exit_msg = f'Completed {gen} generations'
+            exit_msg = f'# Completed {gen} generations'
     durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
     return population, logbook, gen_best, durs, exit_msg
 

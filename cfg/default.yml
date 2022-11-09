@@ -1,7 +1,8 @@
+---
 dataset:
   barriers: clokes
-  origin: d
-  destination: h
+  origin: bc
+  destination: e
 logging:
   no_log: False
   no_record: False
@@ -14,12 +15,14 @@ visualisation:
   sol_txt: True
 validation:
   threshold: 2
-  no_intersect: True
+  no_intersect: False
   invalidity_cost: length*100
   intersection_cost: intersection**2
 defaults:
   ngen: 250
   nsegs: 100
+  start: 0
+  end: 1
   pop_size: 300
   cxpb: 0.5
   mutpb: 0.1

@@ -23,6 +23,15 @@ LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 GF_COL = 'c'
 LN_COL = 'k'
 PT_COL = 'r'
+LOGO = '''
+
+░██████╗░██████╗░░░░░░░████████╗██████╗░░█████╗░░░░░░██╗███████╗░█████╗░  ██████╗░██████╗░
+██╔════╝░██╔══██╗░░░░░░╚══██╔══╝██╔══██╗██╔══██╗░░░░░██║██╔════╝██╔══██╗  ╚════██╗██╔══██╗
+██║░░██╗░██████╔╝█████╗░░░██║░░░██████╔╝███████║░░░░░██║█████╗░░██║░░╚═╝  ░█████╔╝██║░░██║
+██║░░╚██╗██╔═══╝░╚════╝░░░██║░░░██╔══██╗██╔══██║██╗░░██║██╔══╝░░██║░░██╗  ░╚═══██╗██║░░██║
+╚██████╔╝██║░░░░░░░░░░░░░░██║░░░██║░░██║██║░░██║╚█████╔╝███████╗╚█████╔╝  ██████╔╝██████╔╝
+░╚═════╝░╚═╝░░░░░░░░░░░░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚══════╝░╚════╝░  ╚═════╝░╚═════╝░ v1.0.0
+'''
 
 def parse_opts():
     config = {}
@@ -75,7 +84,7 @@ def animate(i, gen_best, pset, x, threshold, interval, title, ax):
 
 def create_gif(gen_best, pset, opts):
     init_time = time.perf_counter()
-    logging.info('Animating GIF')
+    logging.info('# Animating GIF')
     fig2, ax = plt.subplots()
     title = ax.text(0.9, 0.9, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
                 transform=ax.transAxes, ha="center")
@@ -98,12 +107,12 @@ def create_gif(gen_best, pset, opts):
             if fit not in chckpts:
                 chckpts.append(fit)
                 chckpt_inds.append(ind)
-        logging.info(f'GIF has {len(chckpts)} frames')
+        logging.info(f'# GIF has {len(chckpts)} frames')
         ani = FuncAnimation(fig2, animate, 
             fargs=(chckpt_inds, pset, opts.x, opts.threshold, opts.interval, title, ax), 
             interval=1000, blit=False, repeat=True, frames=len(chckpt_inds)) 
     else:
-        logging.info(f'GIF has {len(gen_best)} frames')
+        logging.info(f'# GIF has {len(gen_best)} frames')
         ani = FuncAnimation(fig2, animate, 
             fargs=(gen_best, pset, opts.x, opts.threshold, opts.interval, title, ax), 
             interval=100, blit=False, repeat=True, frames=len(gen_best)) 
@@ -111,10 +120,10 @@ def create_gif(gen_best, pset, opts):
     ani.save(f"plot_out/{opts.name}.gif", dpi=300, writer=PillowWriter(fps=25))
     plt.close(fig2)
     dur = time.perf_counter() - init_time
-    logging.info(f'GIF created in {round(dur, 2)}s')
+    logging.info(f'# GIF created in {round(dur, 2)}s')
 
 def plot_log(log, hof, pset, opts, params):
-    logging.info('Plotting results...')
+    logging.info('# Plotting results... (close figure to continue)')
     fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
     fig1.suptitle('Pathing Result', fontsize=10)
@@ -156,41 +165,54 @@ def plot_log(log, hof, pset, opts, params):
 
 def main(opt):
     init_time = time.perf_counter()
-    logging.info(f'Running for {opt.ngen} generations')
-    logging.info(f"\tfrom: {opt.origin}\n\tto: {opt.destination}\n\tin: {opt.barriers}")
-    params = yaml.dump(vars(opt), allow_unicode=True, default_flow_style=False, indent=4)
+    logging.info(f'\n# Parameter set:')
+    params = yaml.dump(vars(opt), allow_unicode=True, indent=4)
+    logging.info(params)
+    logging.info(LOGO)
+    # calculate origin-destination distance as the crow flies 
     opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
                             [pts[opt.destination].x, pts[opt.destination].y]])
     crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
     opt.threshold *= crow_dist
-    logging.info(f'Displacement is {crow_dist:.2f}, performance threshold set to {opt.threshold:.2f}')
-    opt.x = np.linspace(0,1,opt.nsegs)
+    logging.info(f'# Displacement is {crow_dist:.2f}, \
+    performance threshold set to {opt.threshold:.2f}')
+    opt.x = np.linspace(opt.start,opt.end,opt.nsegs) # don't need x here
     pop, log, hof, pset, gen_best, durs, msg = nsga_main(opt)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
     logging.info(msg)
-    logging.info(f'\n\nOptimal solution:\n\t{hof[0]}\n\tFitness: {optimum:.3f}\n\tSize: {len(hof[0])}\n\tGen: {hof[0].generation}')
+    logging.info(f'\n# Optimal solution:\n\t{hof[0]}\n\t\
+    Fitness: {optimum:.3f}\n\t\
+    Size: {len(hof[0])}\n\t\
+    Gen: {hof[0].generation}')
     dur = time.perf_counter() - init_time
-    logging.info(f'{gens_done} generations completed in {dur:.2f}s ({dur/gens_done:.3f}s per generation)')
-    logging.info(f"Computation times:\n\tPrep: {durs['prep']:.2f}\n\tEval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}")
+    logging.info(f'# {gens_done} generations completed in {dur:.2f}s \
+    ({dur/gens_done:.3f}s per generation)')
+    logging.info(f"# Computation times:\n\tPrep: {durs['prep']:.2f}\n\t\
+    Eval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}")
+    # the right way to check validity of hof[0]:
+        #solution_fx = gp.compile(expr=hof[0], pset=pset)
+        #solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in opt.x]))
+        # OOPS: must actually run intersect in the same space...
+        #valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
+    # the quick way to check validity of hof[0]:
+    valid_solution = optimum < (3*crow_dist)
+    logging.info(f'\n# final solution valid: {valid_solution}\n')
     if opt.sol_txt:
         with open(f'logs/solutions/{opt.name}', 'w') as txt:
             txt.write(str(hof[0]))
+        logging.info('# sol.txt saved')
     if not opt.no_record:
-        solution_fx = gp.compile(expr=hof[0], pset=pset)
-        solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in opt.x]))
-        # OOPS: must actually run intersect in the same space...
-        valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
         with open('logs/tests.csv', 'r+') as logtable:
             # ToDo: start fresh log if none exists
-            last_id = logtable.readlines()[-1].split(',')[0]
+            current_id = int(logtable.readlines()[-1].split(',')[0]) + 1
             logtable.write('\n')
             # ID,NAME,GEOFENCES,ORIGIN,DESTINATION,GENS_PLANNED,GENS,ZERO_INT,
             # PENALTY,SEGMENTS,INTERVAL_FROM,INTERVAL_TO,THRESHOLD,POP,CXPB,
             # MUTPB,HEIGHT_LIM,SEED,MULTIPROCESSING,CHUNKSIZE,DURATION,GEN_DUR,
             # SOLUTION,OPTIMUM,SIZE
             logtable.write(','.join(str(i) for i in
-                                    [int(last_id) + 1, 
+                                    [current_id, 
                                     opt.name,
                                     opt.barriers,
                                     opt.origin,
@@ -215,9 +237,11 @@ def main(opt):
                                     round(optimum, 2),
                                     len(hof[0])])
             )
+        logging.info(f'# results table updated (id = {current_id})')
     if not opt.no_log:
         df_log = pd.DataFrame(log)
         df_log.to_csv(f'logs/evolution/{opt.name}.csv', index=False)
+        logging.info('# evolution.csv saved')
     if not opt.no_plot:
         plot_log(log, hof, pset, opt, params)
     if opt.save_gif:

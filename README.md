@@ -113,7 +113,7 @@ Visualising the evolution:
 - plot 3D
 - implement stop criteria
 - fix 3D rotation matrices in docs
-- fix 2D rotation matrix in gptrajec.p
+- fix 2D rotation matrix in gptrajec.py
 
 ### Done
 

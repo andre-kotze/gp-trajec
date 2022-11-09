@@ -19,6 +19,7 @@ test/
 
 # Notebooks
 .ipynb_checkpoints/
+notebooks/
 
 # Debugging
 .vscode/

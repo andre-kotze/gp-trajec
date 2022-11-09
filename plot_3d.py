@@ -7,7 +7,7 @@ from gptrajec import transform_3d
 plot_types = ['steps', 'party', 'result', 'flat']
 plot_type = plot_types[3]
 
-x = np.linspace(-4*np.pi,4*np.pi,100)
+x = np.linspace(-0.5*np.pi,0.5*np.pi,100)
 #x = np.linspace(0,1,100)
 y = np.sin(1)*x + np.sin(np.cos(x)) * np.sin(x) -np.cos(1) - np.cos(np.cos(-1-x))
 #y = 2*np.sin(x) + np.sin(4*x) + 3*np.cos(x) + np.sin(2*x) + np.sin(x**2) - np.cos(6*x)
@@ -19,7 +19,7 @@ dest_int = np.array([[288000,48600,60],[292600,48960,300]])
 dest_int_tf = dest_int - np.array([[288000,48600,60],[288000,48600,60]])
 line = np.array([[xc,yc,zc] for xc,yc,zc in zip(x,y,z)])
 print(f'transforming route with {line.shape=}\nfrom {np.round(line[0],2)} to {np.round(line[-1],2)}')
-route, steps = transform_3d(line, dest_int, True)
+route, steps = transform_3d(line, dest_int)
 post_scale, post_z, post_y, post_x = steps
 print(f'transformed route with {route.shape=}\nfrom {np.round(route[0],2)} to {np.round(route[-1],2)}')
 
