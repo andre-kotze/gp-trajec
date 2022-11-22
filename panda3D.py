@@ -1,10 +1,24 @@
 import panda3D
-from gptrajec import faces_from_poly
+from panda3d.core import (
+    Point3,
+    Plane,
+    Vec3,
+    CollisionPlane, 
+    CollisionSegment, 
+    CollisionPolygon)
+#from gptrajec import faces_from_poly
 from shapely.geometry import Polygon
+from data.test_data_3d import line
 
 ground = CollisionPlane(Plane(Vec3(0, 0, 1), Point3(0, 0, 0)))
 
-segment = CollisionSegment(ax, ay, az, bx, by, bz)
+segments = []
+for s in range(len(line)-1):
+    ax, ay, az = line[s]
+    bx, by, bz = line[s+1]
+    segments.append(CollisionSegment(ax, ay, az, bx, by, bz))
+print(len(segments))
+print(segments[:5])
 
 quad = CollisionPolygon(Point3(0, 0, 0), Point3(0, 0, 1),
                         Point3(0, 1, 1), Point3(0, 1, 0))
@@ -44,6 +58,6 @@ for bar in [building,military,nofly]:
 
 
 def inters_check():
-    
+    return None
 
 inters_check()

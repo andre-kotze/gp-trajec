@@ -8,26 +8,13 @@ import math
 import multiprocessing
 import signal
 
-import numpy
+import numpy as np
 from deap import base, creator, tools, gp
 
 # for 2D implementation/testing we use shapely
 from shapely.geometry import LineString
-from data.test_data_2d import barriers, pts
 from gptrajec import transform_2d, eaTrajec
-
-def validate(individual, params):
-    # check intersection
-    for barrier in barriers[params['barriers']].geoms:
-        if individual.intersects(barrier):
-            return False
-    return True
-
-def flexible_validate(individual, params):
-    intersection = 0
-    for barrier in barriers[params['barriers']].geoms:
-        intersection += barrier.intersection(individual).length
-    return eval(params['int_cost'], {}, {"intersection": intersection})
+import validation as v
 
 def protectedDiv(left, right):
     try:
@@ -58,17 +45,16 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
 # makes no sense but params and individual args are switched:
-def evalPath(params, individual):
+def evalPath_2d(params, individual):
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
-
     # Validate the line (only requirement is non-intersection)
     x = params['x']
     y = [func(p) for p in x]
-    line = transform_2d(numpy.column_stack((x, y)), params['interval'])
+    line = transform_2d(np.column_stack((x, y)), params['interval'])
     line = LineString(line)
     if params['no_intersect']:
-        valid = validate(line, params)
+        valid = v.validate_2d(line, params)
         if valid:
         # Evaluate the fitness (only consider length)
             fitness = line.length
@@ -78,8 +64,29 @@ def evalPath(params, individual):
         # or invalidate line completely
             #fitness = False
     else:
-        fitness = flexible_validate(line, params) + line.length
+        fitness = v.flexible_validate_2d(line, params) + line.length
+    return fitness,
 
+def evalPath_3d(params, individual):
+    # Transform the tree expression in a callable function
+    func = toolbox.compile(expr=individual)
+    # Validate the line (only requirement is non-intersection)
+    x = params['x']
+    y = [func(p) for p in x]
+    line = transform_2d(np.column_stack((x, y)), params['interval'])
+    line = LineString(line)
+    if params['no_intersect']:
+        valid = v.validate_3d(line, params)
+        if valid:
+        # Evaluate the fitness (only consider length)
+            fitness = line.length
+        else:
+        # Severely penalise invalid lines
+            fitness = eval(params['inv_cost'], {}, {"length": line.length})
+        # or invalidate line completely
+            #fitness = False
+    else:
+        fitness = v.flexible_validate_3d(line, params) + line.length
     return fitness,
 
 toolbox.register("select", tools.selTournament, tournsize=3)
@@ -100,11 +107,12 @@ def main(cfg):
     eval_args = {'x' : cfg.x,
                 'barriers' : cfg.barriers,
                 'interval' : cfg.interval,
+                'validation_3d' : cfg.validation_3d,
                 'no_intersect' : cfg.no_intersect,
                 'inv_cost' : cfg.invalidity_cost,
                 'int_cost' : cfg.intersection_cost}
 
-    toolbox.register("evaluate", evalPath, eval_args)
+    toolbox.register("evaluate", evalPath_2d, eval_args)
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg.max_height))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=cfg.max_height))
     if cfg.max_length:
@@ -117,10 +125,10 @@ def main(cfg):
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     stats_size = tools.Statistics(len)
     mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
-    mstats.register("mean", numpy.mean)
-    mstats.register("std", numpy.std)
-    mstats.register("min", numpy.min)
-    mstats.register("max", numpy.max)
+    mstats.register("mean", np.mean)
+    mstats.register("std", np.std)
+    mstats.register("min", np.min)
+    mstats.register("max", np.max)
 
     pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 
                                 cxpb=cfg.cxpb, 

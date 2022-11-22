@@ -1,18 +1,18 @@
-# How to use
-
-0. Install all required packages
-1. Update configuration in cfg/default.yml
-2. Pass additional arguments via command line (optional)
-3. Provide/check test data in data/test_data_2d.py and data/test_data_3d.py
-4. run main.py
-
 # Genetic programming to optimize 3D trajectories
 
  Finding the optimal trajectory in a 3D space is an ongoing research topic with applications such as optimizing an underwater route for a submarine robot or a flight route for drones. The problem becomes challenging as soon as the 3D space has barriers like danger zones or protected spaces. Those barriers can be modelled as features in GIS. A research gap to be closed is to combine the trajectory optimization techniques with GIS-modelled 3D barriers. Namely, the produced 3D-routes from the optimization techniques need a validation process to ensure that no barriers are crossed. Since many validations are necessary, one requirement is a fast computation.
 
-The aim of this thesis is to solve the trajectory optimization problem with the artificial intelligence technique called "Genetic Programming" (GP). The produced trajectories are to be converted into geographical lines, which are tested for any interference with GIS-modelled 3D barriers. 
+The aim of this thesis is to solve the trajectory optimization problem with the artificial intelligence technique called "Genetic Programming" (GP). The produced trajectories are to be converted into geographical lines, which are tested for any interference with GIS-modelled 3D barriers.
 
 Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
+
+## How to use
+
+0. Install all required packages (tested in Python 3.10 and 3.11)
+1. Update configuration in `cfg/default.yml`
+2. Pass additional arguments via command line (optional)
+3. Provide/check test data in `data/test_data_2d.py` and `data/test_data_3d.py`
+4. run `main.py`
 
 ## Trajectory Optimisation
 
@@ -45,6 +45,7 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | barriers | `str` | geofences dataset |
 | origin | `str` | start point |
 | destination | `str` | end point |
+| only_2d | `Bool` | ignore z-dimension completely |
 | no_log | `Bool` | don't save GP log |
 | no_record | `Bool` | don't record results to table |
 | verbose | `Bool` | output progress to console |
@@ -55,8 +56,9 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | sol_txt | `Bool` | save solution as txt |
 | threshold | `float` | max fitness to plot (factor of direct distance) |
 | no_intersect | `Bool` | invalidate any intersecting lines |
-| invalidity_cost | length*100 | penalty for intersection with `no_intersect=True` |
-| intersection_cost | intersection**2 | penalty for intersection with `no_intersect=False` |
+| validation_3d | `str` | 3D validation method to use
+| invalidity_cost | `exp` | penalty for intersection with `no_intersect=True` |
+| intersection_cost | `exp` | penalty for intersection with `no_intersect=False` |
 | ngen | `int` | number of generations to evolve through |
 | nsegs | `int` | number of line vertices to use in solution validation |
 | pop_size | `int` | population size to use in GP |
@@ -86,6 +88,7 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 At present, validation is dependent on non-intersection with barriers, and fitness is a single value: the length of the path.
 
 To be considered later:
+
 1. Path variation in z-dimension (less=better)
 2. Solution size (smaller=better)
 3. Solution evolve-time (earlier=better)
@@ -95,7 +98,7 @@ To be considered later:
 Elitism can be activated via the `elitism` parameter.
 The number of elite individuals injected into the subsequent generation is determined by the HallOfFame size.
 
-## 2-Dimensional Results:
+## 2-Dimensional Results
 
 250 generations for optimising the path through Clove Lakes subset:
 
@@ -112,8 +115,7 @@ Visualising the evolution:
 - implement 3D
 - plot 3D
 - implement stop criteria
-- fix 3D rotation matrices in docs
-- fix 2D rotation matrix in gptrajec.py
+- fix 3D rotation matrices in doc
 
 ### Done
 
@@ -123,8 +125,10 @@ Visualising the evolution:
 - except Keyboard Interrupt during multiprocessing
 - load default config and update with passed args
 - plot solution map and metrics
-- implement elitism
+- implement elitisms
+- fix 2D rotation matrix in gptrajec.py
 
 ### Didn't work
 
 - imap_unordered doesn't work, unless Ind ID is passed back and forth
+- (n+1)D matrices for n-D transformations. They work, but are unnecessary

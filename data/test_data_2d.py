@@ -86,3 +86,6 @@ example_space = MultiPolygon(example_space)
 barriers = {'clokes': clokes,
             'islas': islas,
             'example_space': example_space}
+
+pts['ex0'] = Point(example_route.geoms[0].coords[0])
+pts['ex1'] = Point(example_route.geoms[0].coords[-1])

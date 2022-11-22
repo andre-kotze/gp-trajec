@@ -15,14 +15,17 @@ from gptrajec import transform_2d
 from shapely.geometry import LineString
 from nsga_iii import main as nsga_main
 from deap import gp
+from rich.logging import RichHandler
 
-logging.basicConfig(format='%(message)s', level=logging.INFO)
+logging.basicConfig(format='%(message)s', level=logging.INFO, 
+    datefmt="[%X]", handlers=[RichHandler()])
 logging.info(f'BEEP BEEP BOOP Loading...')
 
 LABEL = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 GF_COL = 'c'
 LN_COL = 'k'
 PT_COL = 'r'
+t_style = {'weight': 'bold', 'size': 12}
 LOGO = '''
 
 ░██████╗░██████╗░░░░░░░████████╗██████╗░░█████╗░░░░░░██╗███████╗░█████╗░  ██████╗░██████╗░
@@ -57,7 +60,13 @@ def parse_opts():
     args = parser.parse_args()
     args = {k:v for k,v in vars(args).items() if v}
     config.update(args)
-    return argparse.Namespace(**config)
+    # iterate through sub-dicts and update
+    params_dict = ml_config.copy()
+    for sub_level in ml_config:
+        for item in ml_config[sub_level]:
+            params_dict[sub_level][item] = config[item]
+
+    return argparse.Namespace(**config), params_dict
 
 def alpha_func(n, t):
     # return an opacity value according to a function
@@ -122,25 +131,24 @@ def create_gif(gen_best, pset, opts):
     dur = time.perf_counter() - init_time
     logging.info(f'# GIF created in {round(dur, 2)}s')
 
-def plot_log(log, hof, pset, opts, params):
-    logging.info('# Plotting results... (close figure to continue)')
+def plot_log(log, hof, pset, opts, params, result):
     fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
-    fig1.suptitle('Pathing Result', fontsize=10)
+    fig1.suptitle(f'Pathing Result for {opts.name}', fontproperties=t_style)
     ax0 = fig1.add_subplot(gs[0,:-1])
-    ax0.set_title('Solution', fontsize=10)
+    ax0.set_title('Solution', t_style)
     ax1 = fig1.add_subplot(gs[0,-1])
-    ax1.set_title('Parameters', fontsize=10)
-    params += f'\nBest solution:\n Fitness: {hof[0].fitness.getValues()[0]:.2f}\n Size: {len(hof[0])}\n Height: {hof[0].height}\n Generation: {hof[0].generation}'
-    ax1.text(0.02, 0.5, params, verticalalignment='center', transform=ax1.transAxes, fontsize=8)
+    ax1.set_title('Parameters', t_style)
+    ax1.text(0.02, 0.5, f'{params}\n{result}\nMin dist: {opts.crow_dist:.2f}', 
+        verticalalignment='center', transform=ax1.transAxes, fontsize=8)
     ax2 = fig1.add_subplot(gs[1,0])
     ax3 = fig1.add_subplot(gs[1,1])
     ax4 = fig1.add_subplot(gs[1,2])
     ax5 = fig1.add_subplot(gs[1,3])
-    ax2.set_title('Fitness (Pop Best)', fontsize=10)
-    ax3.set_title('Solution Size (Pop Mean)', fontsize=10)
-    ax4.set_title('Evaluation Time (s)', fontsize=10)
-    ax5.set_title('Curve', fontsize=10)
+    ax2.set_title('Fitness (Pop Best)', t_style)
+    ax3.set_title('Solution Size (Pop Mean)', t_style)
+    ax4.set_title('Evaluation Time (s)', t_style)
+    ax5.set_title('Curve', t_style)
     x, y = np.column_stack(opts.interval)
     ax0.scatter(x, y, color=PT_COL, marker='x')
     for barrier in barriers[opts.barriers].geoms:
@@ -149,11 +157,13 @@ def plot_log(log, hof, pset, opts, params):
     for n, solution in enumerate(hof):
         ln_func = gp.compile(expr=solution, pset=pset)
         y = np.array([ln_func(xc) for xc in opts.x])
-        if n == 0:
-            ax5.plot(opts.x,y)
         linelist = np.array([[xc,yc] for xc,yc in zip(opts.x,y)])
         line = transform_2d(linelist, opts.interval)
         ax0.plot(line[:,0], line[:,1], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
+        if n == 0:
+            ax5.plot(opts.x,y)
+            len_factor = np.sum([np.linalg.norm(linelist[i]-linelist[i-1]) for i in range(1,len(linelist))])
+            #len_factor = np.sum(np.linalg.norm(linelist, axis=1)) / np.linalg.norm(linelist[-1] - linelist[0])
     ax2.plot(log.chapters["fitness"].select("min"), color='g')
     ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"), color='y')
@@ -162,41 +172,42 @@ def plot_log(log, hof, pset, opts, params):
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
     plt.show()
+    return len_factor, 'plot.png saved'
 
-def main(opt):
+def main(opt, pars):
     init_time = time.perf_counter()
-    logging.info(f'\n# Parameter set:')
-    params = yaml.dump(vars(opt), allow_unicode=True, indent=4)
-    logging.info(params)
     logging.info(LOGO)
     # calculate origin-destination distance as the crow flies 
     opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
                             [pts[opt.destination].x, pts[opt.destination].y]])
-    crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
-    opt.threshold *= crow_dist
-    logging.info(f'# Displacement is {crow_dist:.2f}, \
-    performance threshold set to {opt.threshold:.2f}')
+    opt.crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
+    opt.threshold *= opt.crow_dist
+    logging.info((f'# Displacement is {opt.crow_dist:.2f}, '
+    f'performance threshold set to {opt.threshold:.2f}'))
     opt.x = np.linspace(opt.start,opt.end,opt.nsegs) # don't need x here
     pop, log, hof, pset, gen_best, durs, msg = nsga_main(opt)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
-    logging.info(msg)
-    logging.info(f'\n# Optimal solution:\n\t{hof[0]}\n\t\
-    Fitness: {optimum:.3f}\n\t\
-    Size: {len(hof[0])}\n\t\
-    Gen: {hof[0].generation}')
+    params = yaml.dump(pars, sort_keys=False, allow_unicode=True, indent=4)
+    result = (f'Best solution:\n'
+    f'  Fitness: {optimum:.3f}\n'
+    f'  Size: {len(hof[0])}\n'
+    f'  Height: {hof[0].height}\n'
+    f'  Generation: {hof[0].generation}')
     dur = time.perf_counter() - init_time
-    logging.info(f'# {gens_done} generations completed in {dur:.2f}s \
-    ({dur/gens_done:.3f}s per generation)')
-    logging.info(f"# Computation times:\n\tPrep: {durs['prep']:.2f}\n\t\
-    Eval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}")
+    logging.info((f'{msg}\n\n# PARAMETERS:\n{params}'
+    f'\n# SOLUTION:\n{result}\n  Function: {hof[0]}\n'
+    f'\n# PERFORMANCE:\n{gens_done} generations completed in {dur:.2f}s '
+    f'({dur/gens_done:.3f}s per generation)\n'
+    f"# Computation times:\n\tPrep: {durs['prep']:.2f}\n\t"
+    f"Eval: {durs['eval']:.2f}\n\tTrans: {durs['trans']:.2f}"))
     # the right way to check validity of hof[0]:
         #solution_fx = gp.compile(expr=hof[0], pset=pset)
         #solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in opt.x]))
         # OOPS: must actually run intersect in the same space...
         #valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
     # the quick way to check validity of hof[0]:
-    valid_solution = optimum < (3*crow_dist)
+    valid_solution = optimum < (2*opt.crow_dist)
     logging.info(f'\n# final solution valid: {valid_solution}\n')
     if opt.sol_txt:
         with open(f'logs/solutions/{opt.name}', 'w') as txt:
@@ -243,11 +254,15 @@ def main(opt):
         df_log.to_csv(f'logs/evolution/{opt.name}.csv', index=False)
         logging.info('# evolution.csv saved')
     if not opt.no_plot:
-        plot_log(log, hof, pset, opt, params)
+        logging.info('# Plotting results... (close figure to continue)')
+        len_f, msg = plot_log(log, hof, pset, opt, params, result)
+        logging.info(msg)
     if opt.save_gif:
         create_gif(gen_best, pset, opt)
+    # interesting final notes:
+    logging.info(f'hof[0] length, calculated without converting to geo: {opt.crow_dist * len_f}\n({len_f=})')
     logging.info('[FINISHED]')
 
 if __name__ == "__main__":
-    opt = parse_opts()
-    main(opt)
+    opt, pars = parse_opts()
+    main(opt, pars)

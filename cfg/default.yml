@@ -1,24 +1,10 @@
 ---
 dataset:
-  barriers: clokes
-  origin: bc
-  destination: e
-logging:
-  no_log: False
-  no_record: False
-  verbose: False
-visualisation:
-  no_plot: False
-  save_gif: True
-  short_gif: True
-  gif_zoom: 0.15
-  sol_txt: True
-validation:
-  threshold: 2
-  no_intersect: False
-  invalidity_cost: length*100
-  intersection_cost: intersection**2
+  barriers: example_space
+  origin: ex0
+  destination: ex1
 defaults:
+  only_2d: False
   ngen: 250
   nsegs: 100
   start: 0
@@ -34,3 +20,25 @@ defaults:
   seed: 151
   multiproc: imap
   chunksize: None
+validation:
+  threshold: 2
+  no_intersect: False
+  validation_3d: delaunay
+  # 3d validation options:
+  # -delaunay
+  # -shapely
+  # -hulls_equal1
+  # -hulls_equal2
+  # -triangles
+  invalidity_cost: length*100
+  intersection_cost: intersection**2
+logging:
+  no_log: False
+  no_record: False
+  verbose: False
+visualisation:
+  no_plot: False
+  save_gif: False
+  short_gif: True
+  gif_zoom: 0.15
+  sol_txt: False
