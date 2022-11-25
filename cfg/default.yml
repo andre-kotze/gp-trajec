@@ -4,7 +4,7 @@ dataset:
   origin: ex0
   destination: ex1
 defaults:
-  only_2d: False
+  only_2d: True
   ngen: 250
   nsegs: 100
   start: 0
@@ -14,7 +14,10 @@ defaults:
   mutpb: 0.1
   max_height: 8
   max_length: 80
+  init_min: 1
+  init_max: 2
   elitism: True
+  tournsize: 3
   patience: 100
   hof_size: 3
   seed: 151
@@ -27,9 +30,10 @@ validation:
   # 3d validation options:
   # -delaunay
   # -shapely
-  # -hulls_equal1
-  # -hulls_equal2
+  # -hulls_equal
+  # -linprog
   # -triangles
+  # -postgis
   invalidity_cost: length*100
   intersection_cost: intersection**2
 logging:

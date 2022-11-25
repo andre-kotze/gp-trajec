@@ -2,11 +2,147 @@ import random
 import time
 
 import numpy as np
-from numpy import arctan2, reshape, array
+from numpy import reshape, array
 from numpy.linalg import norm
 from deap import tools, algorithms
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
+
+def varAnd_pairs(population, toolbox, cxpb, mutpb):
+    # This part has been modified to vary individuals that consist of pairs of 
+    # individuals i.e. population is a list of [indy, indz] lists that are
+    # intended to eveolve in tandem
+    offspring = [toolbox.clone(ind) for ind in population]
+
+    # Apply crossover and mutation on the offspring
+    # NEW: this must happen in pairs
+    for i in range(1, len(offspring), 2):
+        if random.random() < cxpb:
+            # NEW: so here, we do indy and indz separately:
+            for half in [0,1]:
+                offspring[half][i - 1], offspring[half][i] = \
+                    toolbox.mate(offspring[half][i - 1], offspring[half][i])
+            del offspring[i - 1].fitness.values, offspring[i].fitness.values
+
+    for i in range(len(offspring)):
+        if random.random() < mutpb:
+            for half in [0,1]:
+                offspring[half][i], = toolbox.mutate(offspring[i])
+            del offspring[i].fitness.values
+
+    return offspring
+
+def eaTrajec_3d(population, toolbox, cxpb, mutpb, ngen, stats=None,
+             halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
+    logbook = tools.Logbook()
+    logbook.header = ['gen', 'nevals', 'dur'] + (stats.fields if stats else [])
+    pop_size = len(population)
+    # record best of generation
+    gen_best = []
+    # record durations of different steps
+    # within each generation
+    durs = {'prep':[], 'eval':[], 'trans':[]}
+
+    # Evaluate the individuals with an invalid fitness
+    invalid_ind = [ind for ind in population if not ind.fitness.valid]
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+    for ind, fit in zip(invalid_ind, fitnesses):
+        ind.fitness.values = fit
+
+    # discard invalid individuals
+    #population = list(filter(is_valid, population))
+
+    if halloffame is not None:
+        halloffame.update(population)
+        hof_size = len(halloffame.items) if halloffame.items else 0
+    elif elitism:
+        raise ValueError('implementing elitism requires non-empty hof parameter')
+
+    record = stats.compile(population) if stats else {}
+    logbook.record(gen=0, nevals=len(invalid_ind), dur=0, **record)
+    if verbose:
+        print(logbook.stream)
+
+    # Instantiate tqdm outside for control of description
+    run = tqdm(range(1, ngen + 1))
+    # Begin the generational process
+    interrupted = False
+    for gen in run:
+        try:
+            t0 = time.perf_counter()
+            # fill population after discarding invalids
+            #population.extend(toolbox.population(pop_size - len(population)))
+            # Select the next generation individuals
+            # if using elitism, inject hof into offspring
+            if elitism:
+                offspring = toolbox.select(population, pop_size - hof_size)
+            else:
+                offspring = toolbox.select(population, pop_size)
+
+            # Vary the pool of individuals
+            offspring = varAnd_pairs(offspring, toolbox, cxpb, mutpb)
+
+            t1 = time.perf_counter()
+            durs['prep'].append(t1 - t0)
+            # Evaluate the individuals with an invalid fitness
+            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+            # add multiprocessing in a different way:
+            try:
+                fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
+                # ToDo: except KeyboardInterrupt if during evaluate [check]
+            except KeyboardInterrupt:
+                # kill workers
+                mp_pool.terminate()
+                mp_pool.join()
+                #raise KeyboardInterrupt
+                interrupted = True
+
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
+                ind.generation = gen
+            
+            #elitism: inject hof into population:
+            if elitism:
+                offspring.extend(halloffame.items)
+            # discard invalid individuals
+            #offspring = filter(is_valid, offspring)
+
+            t2 = time.perf_counter()
+            durs['eval'].append(t2 - t1)
+            # Update the hall of fame with the generated individuals
+            if halloffame is not None:
+                halloffame.update(offspring)
+
+            # select best of generation
+            best = tools.selBest(population, 1)
+            gen_best.extend(best)
+            run.set_description(f'# Fitness: {best[0].fitness.getValues()[0]:.2f}')
+
+            # Replace the current population by the offspring
+            population[:] = offspring
+
+            # check the generation runtime
+            t3 = time.perf_counter()
+            dur = t3 - t0
+            durs['trans'].append(t3 - t2)
+
+            # Append the current generation statistics to the logbook
+            record = stats.compile(population) if stats else {}
+            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
+            if verbose:
+                tqdm.write(logbook.stream)
+            if interrupted:
+                raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            mp_pool.terminate()
+            mp_pool.join()
+            exit_msg = f'# Completed {gen} of {ngen} generations'
+            run.close()
+            break
+        else:
+            exit_msg = f'# Completed {gen} generations'
+    durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
+    return population, logbook, gen_best, durs, exit_msg
 
 def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
              halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
@@ -125,9 +261,10 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
                 # ToDo: except KeyboardInterrupt if during evaluate [check]
             except KeyboardInterrupt:
-                # kill workers
-                mp_pool.terminate()
-                mp_pool.join()
+                if mp_pool:
+                    # kill workers
+                    mp_pool.terminate()
+                    mp_pool.join()
                 #raise KeyboardInterrupt
                 interrupted = True
 
@@ -168,8 +305,9 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             if interrupted:
                 raise KeyboardInterrupt
         except KeyboardInterrupt:
-            mp_pool.terminate()
-            mp_pool.join()
+            if mp_pool:
+                mp_pool.terminate()
+                mp_pool.join()
             exit_msg = f'# Completed {gen} of {ngen} generations'
             run.close()
             break
