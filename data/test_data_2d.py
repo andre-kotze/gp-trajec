@@ -89,3 +89,5 @@ barriers = {'clokes': clokes,
 
 pts['ex0'] = Point(example_route.geoms[0].coords[0])
 pts['ex1'] = Point(example_route.geoms[0].coords[-1])
+pts['nex0'] = Point(319641.7,59339.5)
+pts['triv'] = Point(320660.8,60105.7)

@@ -2,14 +2,21 @@
 import numpy as np
 
 # for 2D implementation/testing we use shapely
-from shapely.geometry import LineString, shape
+from shapely.geometry import LineString, shape, MultiLineString
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.optimize import linprog
 from data.test_data_2d import barriers, pts # dict with multipolygons as values
-#from data.test_data_3d import barriers_3d, pts_3d # dict with list of features (dicts) as values
+from data.test_data_3d import barriers3, pts3, example_hulls, example_points # dict with list of features (dicts) as values
 from gptrajec import transform_2d, eaTrajec
 import moeller_trumbore_algo as mt
 
+def convex_hull(poly):
+    high_pts = np.array(poly.exterior.coords)
+    x, y = poly.exterior.xy
+    z = np.zeros(len(x))
+    low_pts = np.column_stack((x,y,z))
+    pts = np.append(high_pts, low_pts, axis=0)
+    return ConvexHull(pts)
 
 def validate_2d(individual, params):
     # check intersection
@@ -28,24 +35,33 @@ def flexible_validate_2d(individual, params):
 #   2.5D (shapely)
 #
 
-def within(x, lower, upper):
+def within(x, lower=0, upper=300):
     # this is the right way:
     return x >= lower and x <= upper
     # but now, all barriers are clamped to ground:
-def too_low(x, upper):
-    # x = iterable of z-coords
-    return any(x <= upper)
+def too_low(z, upper):
+    # z = iterable of z-coords
+    return any(zc <= upper for zc in z)
 
 def validate_2_5d(individual, params):
     # CHECK INTERSECTION
     # iterate through barriers dataset (feature dicts)
-    for barrier in barriers_3d[params['barriers']]:
+    for barrier in barriers3[params['barriers']].geoms:
         # check solution intersection with feature geometry
-        if individual.intersects(shape(barrier['geometry'])):
+        if individual.intersects(barrier):
             # to intersect in 3D, must also lie "inside" barrier
-            intersection = individual.intersection(shape(barrier['geometry']))
-            if too_low([coord[2] for coord in intersection.coords], barrier['properties']['upper']):
-                return False
+            intersection = individual.intersection(barrier)
+            if isinstance(intersection, MultiLineString):
+                for part in intersection.geoms:
+                    if too_low([coord[2] for coord in part.coords],300):
+                        return False
+                    elif any([within(coord[2]) for coord in part.coords]):
+                        return False
+            else:
+                if too_low([coord[2] for coord in intersection.coords],300):
+                    return False
+                elif any([within(coord[2]) for coord in intersection.coords]):
+                    return False
     return True
 
 #def flexible_validate_3d(individual, params):
@@ -97,30 +113,36 @@ def triangles(vertices, ray_origin, ray_direction):
     intersection = mt.ray_triangle_intersection(vertices, ray_origin, ray_direction)
     return intersection
 
+def delauney_val(hulls, points):
+    for hull in hulls:
+        for point in points:
+            if Delaunay(hull).find_simplex(point) >= 0: # <0 when intersecting
+                return False
+    return True
+
 def validate_3d(individual, params):
     val_type = params['validation_3d']
     # CHECK CONTAINMENT
     # iterate through barriers dataset (feature dicts)
-    for barrier in barriers_3d[params['barriers']]:
+    #for barrier in barriers3[params['barriers']].geoms:
         # check solution containment in feature geometry
         # ToDo: check if bounding boxes intersect. If not, early exit
-        if val_type == 'hulls_equal':
-            if hulls_equal(poly, point):
-                pass
-        elif val_type == 'delaunay':
-            if Delaunay(poly).find_simplex(point) >= 0:
-                pass
-        elif val_type == 'shapely':
-            return validate_2_5d(individual, params)
-        elif val_type == 'linprog':
-            if linprog_val():
-                pass
-        elif val_type == 'triangles':
-            if triangles():
-                pass
-        elif val_type == 'postgis':
+    if val_type == 'hulls_equal':
+        if hulls_equal(poly, point):
             pass
-        else:
-            raise ValueError(f'Unrecognised 3D validation method {val_type}')
+    elif val_type == 'delaunay':
+        return delauney_val(example_points, list(individual.coords))
+    elif val_type == 'shapely':
+        return validate_2_5d(individual, params)
+    elif val_type == 'linprog':
+        if linprog_val():
+            pass
+    elif val_type == 'triangles':
+        if triangles():
+            pass
+    elif val_type == 'postgis':
+        pass
+    else:
+        raise ValueError(f'Unrecognised 3D validation method {val_type}')
 
     return True

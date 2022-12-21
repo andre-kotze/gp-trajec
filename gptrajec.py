@@ -1,11 +1,14 @@
 import random
 import time
+import sys
+from copy import deepcopy
 
 import numpy as np
 from numpy import reshape, array
 from numpy.linalg import norm
 from deap import tools, algorithms
 from tqdm import tqdm
+from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation as R
 
 def varAnd_pairs(population, toolbox, cxpb, mutpb):
@@ -20,131 +23,19 @@ def varAnd_pairs(population, toolbox, cxpb, mutpb):
         if random.random() < cxpb:
             # NEW: so here, we do indy and indz separately:
             for half in [0,1]:
-                offspring[half][i - 1], offspring[half][i] = \
-                    toolbox.mate(offspring[half][i - 1], offspring[half][i])
+                offspring[i - 1][half], offspring[i][half] = \
+                    toolbox.mate(offspring[i - 1][half], offspring[i][half])
             del offspring[i - 1].fitness.values, offspring[i].fitness.values
 
     for i in range(len(offspring)):
         if random.random() < mutpb:
             for half in [0,1]:
-                offspring[half][i], = toolbox.mutate(offspring[i])
+                offspring[i][half], = toolbox.mutate(offspring[i][half])
             del offspring[i].fitness.values
 
-    return offspring
+    return offspring 
 
-def eaTrajec_3d(population, toolbox, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
-    logbook = tools.Logbook()
-    logbook.header = ['gen', 'nevals', 'dur'] + (stats.fields if stats else [])
-    pop_size = len(population)
-    # record best of generation
-    gen_best = []
-    # record durations of different steps
-    # within each generation
-    durs = {'prep':[], 'eval':[], 'trans':[]}
-
-    # Evaluate the individuals with an invalid fitness
-    invalid_ind = [ind for ind in population if not ind.fitness.valid]
-    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-    for ind, fit in zip(invalid_ind, fitnesses):
-        ind.fitness.values = fit
-
-    # discard invalid individuals
-    #population = list(filter(is_valid, population))
-
-    if halloffame is not None:
-        halloffame.update(population)
-        hof_size = len(halloffame.items) if halloffame.items else 0
-    elif elitism:
-        raise ValueError('implementing elitism requires non-empty hof parameter')
-
-    record = stats.compile(population) if stats else {}
-    logbook.record(gen=0, nevals=len(invalid_ind), dur=0, **record)
-    if verbose:
-        print(logbook.stream)
-
-    # Instantiate tqdm outside for control of description
-    run = tqdm(range(1, ngen + 1))
-    # Begin the generational process
-    interrupted = False
-    for gen in run:
-        try:
-            t0 = time.perf_counter()
-            # fill population after discarding invalids
-            #population.extend(toolbox.population(pop_size - len(population)))
-            # Select the next generation individuals
-            # if using elitism, inject hof into offspring
-            if elitism:
-                offspring = toolbox.select(population, pop_size - hof_size)
-            else:
-                offspring = toolbox.select(population, pop_size)
-
-            # Vary the pool of individuals
-            offspring = varAnd_pairs(offspring, toolbox, cxpb, mutpb)
-
-            t1 = time.perf_counter()
-            durs['prep'].append(t1 - t0)
-            # Evaluate the individuals with an invalid fitness
-            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            # add multiprocessing in a different way:
-            try:
-                fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
-                # ToDo: except KeyboardInterrupt if during evaluate [check]
-            except KeyboardInterrupt:
-                # kill workers
-                mp_pool.terminate()
-                mp_pool.join()
-                #raise KeyboardInterrupt
-                interrupted = True
-
-            for ind, fit in zip(invalid_ind, fitnesses):
-                ind.fitness.values = fit
-                ind.generation = gen
-            
-            #elitism: inject hof into population:
-            if elitism:
-                offspring.extend(halloffame.items)
-            # discard invalid individuals
-            #offspring = filter(is_valid, offspring)
-
-            t2 = time.perf_counter()
-            durs['eval'].append(t2 - t1)
-            # Update the hall of fame with the generated individuals
-            if halloffame is not None:
-                halloffame.update(offspring)
-
-            # select best of generation
-            best = tools.selBest(population, 1)
-            gen_best.extend(best)
-            run.set_description(f'# Fitness: {best[0].fitness.getValues()[0]:.2f}')
-
-            # Replace the current population by the offspring
-            population[:] = offspring
-
-            # check the generation runtime
-            t3 = time.perf_counter()
-            dur = t3 - t0
-            durs['trans'].append(t3 - t2)
-
-            # Append the current generation statistics to the logbook
-            record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
-            if verbose:
-                tqdm.write(logbook.stream)
-            if interrupted:
-                raise KeyboardInterrupt
-        except KeyboardInterrupt:
-            mp_pool.terminate()
-            mp_pool.join()
-            exit_msg = f'# Completed {gen} of {ngen} generations'
-            run.close()
-            break
-        else:
-            exit_msg = f'# Completed {gen} generations'
-    durs = {'prep':sum(durs['prep']), 'eval': sum(durs['eval']), 'trans': sum(durs['trans'])}
-    return population, logbook, gen_best, durs, exit_msg
-
-def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
+def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
              halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
     """This is a modified version of eaSimple, the simplest evolutionary 
     algorithm as presented in chapter 7 of [Back2000]_.
@@ -250,7 +141,10 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 offspring = toolbox.select(population, pop_size)
 
             # Vary the pool of individuals
-            offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
+            if dbl_inds_3d:
+                offspring = varAnd_pairs(offspring, toolbox, cxpb, mutpb)
+            else:
+                offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
 
             t1 = time.perf_counter()
             durs['prep'].append(t1 - t0)
@@ -258,8 +152,11 @@ def eaTrajec(population, toolbox, cxpb, mutpb, ngen, stats=None,
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
             # NEW: add multiprocessing in a different way:
             try:
-                fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=1) 
-                # ToDo: except KeyboardInterrupt if during evaluate [check]
+                if mp_pool:
+                    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, chunksize=20) 
+                else:
+                    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind) 
+            # except KeyboardInterrupt if during evaluate [check]
             except KeyboardInterrupt:
                 if mp_pool:
                     # kill workers
@@ -382,6 +279,8 @@ def transform_3d(line, dest, intermediates=False, printing=False):
     line: list of coordinate list triplets
     dest: list of coordinate list triplets of length 2
     '''
+    import warnings
+    warnings.filterwarnings(action='ignore', category=UserWarning)
     # Endpoints:
     ((ax, ay, az), (bx, by, bz)) = dest
     (px, py, pz), (qx, qy, qz) = line[0], line[-1]
@@ -392,45 +291,73 @@ def transform_3d(line, dest, intermediates=False, printing=False):
     line[:,1] -= py
     line[:,2] -= pz
     # now the line originates at the origin
-
+    transed = line.copy()
+    # transform interval too:
+    dest_tf = dest - dest[0]
     # update endpoints
     (px, py, pz), (qx, qy, qz) = line[0], line[-1]
 
     # ROTATION:
+    # normalise line??
+    line /= norm(line[-1])
     # normalise vectors:
     start = line[-1] / norm(line[-1])
-    end = dest[-1] / norm(dest[-1])
+    #end = dest[-1] / norm(dest[-1])
+    end = dest_tf[-1] / norm(dest_tf[-1])
+    normed = (start, end)
+    
 
+    #print('pre-rotation checks...')
+    #print(f'normalised: {all([np.isclose(1, norm(start)),np.isclose(1, norm(end))])}')
+    #print(f'at origin: {np.isclose(0, np.sum(line[0]))}')
+    #print(f'{np.arccos(start.dot(end))=}')
     # get rotation to align vectors:
     rotator = R.align_vectors(reshape(end, (1, -1)),
                     reshape(start, (1, -1)))
     # apply rotation to line:
+    unroted = deepcopy(line)
     line = rotator[0].apply(line)
-    print(f'rotated line from {start} to {line[-1]}\nend is at {end}\n{np.rad2deg(rotator[0].magnitude())=}')
-    
+    #print(f'rotated line from {start} to {line[-1]}\nend is at {end}\n{np.rad2deg(rotator[0].magnitude())=}')
+    #print(f'{norm(rotator[0].as_rotvec())=}')
+    roted = line.copy()
+    #print(f'{unroted[-1]=}\n{line[-1]=}')
+    #print(f'post-rot angle: {np.arccos(unroted[-1].dot(line[-1]))}')
+
+    rot_check = R.align_vectors(reshape(end, (1, -1)),
+                    reshape(line[-1], (1, -1)))
+    #print(f'AFTER ROT, ALIGN VEC gives: {rot_check[0].as_rotvec(degrees=True)}')#
+
     # SCALING: # ToDo: there is a simpler method of scaling
     line_dist = norm(line[-1] - line[0])
     dest_dist = norm(dest[-1] - dest[0])
     d = dest_dist / line_dist # d = scale factor
-    print(f'Scale factor: {d:.2f}\nLine: {line_dist:.2f}\nDist: {dest_dist:.2f}')
+    #print(f'Scale factor: {d:.2f}\nLine: {line_dist:.2f}\nDist: {dest_dist:.2f}')
+    '''
+    Gonna try quick scale:
     scale_matrix = array([[d,0,0],
-                            [0,d,0],
-                            [0,0,d]])
+                        [0,d,0],
+                        [0,0,d]])
 
     post_scale = array([
         array(coord_set).dot(scale_matrix) 
         for coord_set in zip(line[:,0], line[:,1], line[:,2])])
     post_scale = post_scale[:,0:3]
+    '''
+    post_scale = line * d
+    line *= d
 
     # Update line endpoints:
     (px, py, pz), (qx, qy, qz) = line[0], line[-1]
 
     # TRANSFORMATION:
     #transform_matrix = scale_matrix @ rotation_matrix
+    '''
     line = line.dot(scale_matrix)
-    intermediate3 = line.copy()
+    '''
+    
+    #intermediate3 = line.copy()
     #line = array([array(coord_set).dot(scale_matrix) for coord_set in zip(line[:,0], line[:,1], line[:,2])])
-    print('cf with endpoint:', line[-1])
+    #print('cf with endpoint:', line[-1])
 
     # TRANSLATE TO DEST
     # find deviance from Point a
@@ -446,11 +373,11 @@ def transform_3d(line, dest, intermediates=False, printing=False):
     #    print(transform_matrix)
 
     if intermediates:
-        #return line, [post_scale, post_z, post_y, post_x]
-        return line, None
+        return line, [transed, normed, roted, post_scale], rotator[0].as_rotvec(degrees=True)
     else:
-        return line, None
+        return line
     # numpy array like [[x,y,z,1],[x,y,z,1],...]
+
 '''
 def faces_from_poly(polygon):
     # ToDo

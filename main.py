@@ -10,12 +10,16 @@ from matplotlib.gridspec import GridSpec
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from data.test_data_2d import barriers, pts
+from data.test_data_3d import barriers3, pts3
 import numpy as np
-from gptrajec import transform_2d
+from gptrajec import transform_2d, transform_3d
 from shapely.geometry import LineString
 from nsga_iii import main as nsga_main
 from deap import gp
 from rich.logging import RichHandler
+
+__version__ = '1.0.0'
+__author__ = 'Andre Kotze'
 
 logging.basicConfig(format='%(message)s', level=logging.INFO, 
     datefmt="[%X]", handlers=[RichHandler()])
@@ -26,14 +30,14 @@ GF_COL = 'c'
 LN_COL = 'k'
 PT_COL = 'r'
 t_style = {'weight': 'bold', 'size': 12}
-LOGO = '''
+LOGO = f'''
 
 ░██████╗░██████╗░░░░░░░████████╗██████╗░░█████╗░░░░░░██╗███████╗░█████╗░  ██████╗░██████╗░
 ██╔════╝░██╔══██╗░░░░░░╚══██╔══╝██╔══██╗██╔══██╗░░░░░██║██╔════╝██╔══██╗  ╚════██╗██╔══██╗
 ██║░░██╗░██████╔╝█████╗░░░██║░░░██████╔╝███████║░░░░░██║█████╗░░██║░░╚═╝  ░█████╔╝██║░░██║
 ██║░░╚██╗██╔═══╝░╚════╝░░░██║░░░██╔══██╗██╔══██║██╗░░██║██╔══╝░░██║░░██╗  ░╚═══██╗██║░░██║
 ╚██████╔╝██║░░░░░░░░░░░░░░██║░░░██║░░██║██║░░██║╚█████╔╝███████╗╚█████╔╝  ██████╔╝██████╔╝
-░╚═════╝░╚═╝░░░░░░░░░░░░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚══════╝░╚════╝░  ╚═════╝░╚═════╝░ v1.0.0
+░╚═════╝░╚═╝░░░░░░░░░░░░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚══════╝░╚════╝░  ╚═════╝░╚═════╝░ v{__version__}
 '''
 
 def parse_opts():
@@ -53,7 +57,7 @@ def parse_opts():
     parser.add_argument('--no-plot', action='store_true', help="don't save plot of evolutionary process")
     parser.add_argument('--save-gif', action='store_true', help='save gif animation of evolutionary process (heavy)')
     parser.add_argument('--short-gif', action='store_true', help='save minimal gif animation showing stepwise improvement')
-    parser.add_argument('--gif_zoom', type=float, help='set zoom level of gif animation')
+    parser.add_argument('--map_zoom', type=float, help='set zoom level of solution map')
     parser.add_argument('--hof-size', type=int, help='number of individuals to save in HallOfFame')
     #parser.add_argument('--save-pop', action='store_true', default=False, help='save the final population to file')
     #parser.add_argument('--resume-from', type=str, default=None, help='population file to resume from')
@@ -97,10 +101,9 @@ def create_gif(gen_best, pset, opts):
     fig2, ax = plt.subplots()
     title = ax.text(0.9, 0.9, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
                 transform=ax.transAxes, ha="center")
-    buff = opts.gif_zoom
     minx, miny, maxx, maxy = barriers[opts.barriers].bounds
     ax.set_aspect('equal')
-    buffx, buffy = buff*abs(minx - maxx), buff*abs(miny - maxy)
+    buffx, buffy = opts.map_zoom*abs(minx - maxx), opts.map_zoom*abs(miny - maxy)
     ax.set_xlim(minx-buffx,maxx+buffx)
     ax.set_ylim(miny-buffy,maxy+buffy)
     # plot endpoints
@@ -135,40 +138,74 @@ def plot_log(log, hof, pset, opts, params, result):
     fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
     fig1.suptitle(f'Pathing Result for {opts.name}', fontproperties=t_style)
-    ax0 = fig1.add_subplot(gs[0,:-1])
-    ax0.set_title('Solution', t_style)
     ax1 = fig1.add_subplot(gs[0,-1])
     ax1.set_title('Parameters', t_style)
     ax1.text(0.02, 0.5, f'{params}\n{result}\nMin dist: {opts.crow_dist:.2f}', 
-        verticalalignment='center', transform=ax1.transAxes, fontsize=8)
+        verticalalignment='center', transform=ax1.transAxes, fontsize=7)
     ax2 = fig1.add_subplot(gs[1,0])
     ax3 = fig1.add_subplot(gs[1,1])
     ax4 = fig1.add_subplot(gs[1,2])
-    ax5 = fig1.add_subplot(gs[1,3])
+    
     ax2.set_title('Fitness (Pop Best)', t_style)
     ax3.set_title('Solution Size (Pop Mean)', t_style)
     ax4.set_title('Evaluation Time (s)', t_style)
-    ax5.set_title('Curve', t_style)
-    x, y = np.column_stack(opts.interval)
-    ax0.scatter(x, y, color=PT_COL, marker='x')
-    for barrier in barriers[opts.barriers].geoms:
-        ax0.fill(*barrier.exterior.xy, alpha=1, fc=GF_COL, ec='none')
     
+    if opts.enable_3d:
+        x, y, z = np.column_stack(opts.interval)
+        ax0 = fig1.add_subplot(gs[0,:-1], projection='3d')
+        ax5 = fig1.add_subplot(gs[1,3], projection='3d')
+        ax0.scatter(x, y, z, color=PT_COL, marker='x')
+        ax0.set_zlim(0, None)
+        for barrier in barriers[opts.barriers].geoms:
+            ax0.plot(*barrier.exterior.xy, zs=0, zdir='z', alpha=1)
+            ax0.plot(*barrier.exterior.xy, zs=300, zdir='z', alpha=1)
+    else: # 2d
+        x, y = np.column_stack(opts.interval)
+        ax0 = fig1.add_subplot(gs[0,:-1])
+        ax5 = fig1.add_subplot(gs[1,3])
+        ax0.scatter(x, y, color=PT_COL, marker='x')
+        for barrier in barriers[opts.barriers].geoms:
+            ax0.fill(*barrier.exterior.xy, alpha=1, fc=GF_COL, ec='none')
+
+    ax0.set_title('Solution', t_style)
+    ax5.set_title('Curve', t_style)
+
+    len_factor = 0
+
     for n, solution in enumerate(hof):
-        ln_func = gp.compile(expr=solution, pset=pset)
-        y = np.array([ln_func(xc) for xc in opts.x])
-        linelist = np.array([[xc,yc] for xc,yc in zip(opts.x,y)])
-        line = transform_2d(linelist, opts.interval)
-        ax0.plot(line[:,0], line[:,1], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
-        if n == 0:
-            ax5.plot(opts.x,y)
-            len_factor = np.sum([np.linalg.norm(linelist[i]-linelist[i-1]) for i in range(1,len(linelist))])
-            #len_factor = np.sum(np.linalg.norm(linelist, axis=1)) / np.linalg.norm(linelist[-1] - linelist[0])
+        if opts.enable_3d:
+            if not opts.hildemann_3d:
+                yfunc = gp.compile(expr=solution[0], pset=pset)
+                zfunc = gp.compile(expr=solution[1], pset=pset)
+                y = [yfunc(p) for p in x]
+                z = [zfunc(p) for p in x]
+            else:
+                func = gp.compile(expr=solution, pset=pset)
+                y = [func(p, 0) for p in x]
+                z = [func(0, p) for p in x]
+            line = transform_3d(np.column_stack((x, y, z)), opts.interval)
+            ax0.plot(line[:,0], line[:,1], line[:,2], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
+            if n == 0:
+                ax5.plot(x,y,z)
+        else:
+            ln_func = gp.compile(expr=solution, pset=pset)
+            y = np.array([ln_func(xc) for xc in opts.x])
+            linelist = np.array([[xc,yc] for xc,yc in zip(opts.x,y)])
+            line = transform_2d(linelist, opts.interval)
+            ax0.plot(line[:,0], line[:,1], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
+            if n == 0:
+                ax5.plot(opts.x,y)
+                len_factor = np.sum([np.linalg.norm(linelist[i]-linelist[i-1]) for i in range(1,len(linelist))])
+                minx, miny, maxx, maxy = LineString(line).bounds
+                buffx, buffy = opts.map_zoom*abs(minx - maxx), opts.map_zoom*abs(miny - maxy)
+                ax0.set_xlim(minx-buffx,maxx+buffx)
+                ax0.set_ylim(miny-buffy,maxy+buffy)
     ax2.plot(log.chapters["fitness"].select("min"), color='g')
     ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"), color='y')
     ax4.plot(log.select('dur'), color='b')
-    ax0.set_aspect('equal')#, 'box')
+    #ax0.set_aspect('equal')
+
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
     plt.show()
@@ -180,6 +217,8 @@ def main(opt, pars):
     # calculate origin-destination distance as the crow flies 
     opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
                             [pts[opt.destination].x, pts[opt.destination].y]])
+    if opt.enable_3d:
+        opt.interval = np.concatenate((opt.interval, np.array([[pts3[opt.origin].z, pts3[opt.destination].z]]).T), axis=1)
     opt.crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
     opt.threshold *= opt.crow_dist
     logging.info((f'# Displacement is {opt.crow_dist:.2f}, '
@@ -192,8 +231,8 @@ def main(opt, pars):
     result = (f'Best solution:\n'
     f'  Fitness: {optimum:.3f}\n'
     f'  Size: {len(hof[0])}\n'
-    f'  Height: {hof[0].height}\n'
-    f'  Generation: {hof[0].generation}')
+    f'  Height: {hof[0].height if hasattr(hof[0],"height") else [hof[0][0].height, hof[0][1].height]}\n'
+    f'  Generation: {hof[0].generation if hasattr(hof[0],"generation") else "unknown"}')
     dur = time.perf_counter() - init_time
     logging.info((f'{msg}\n\n# PARAMETERS:\n{params}'
     f'\n# SOLUTION:\n{result}\n  Function: {hof[0]}\n'
@@ -257,10 +296,10 @@ def main(opt, pars):
         logging.info('# Plotting results... (close figure to continue)')
         len_f, msg = plot_log(log, hof, pset, opt, params, result)
         logging.info(msg)
+        # interesting final notes:
+        logging.info(f'hof[0] length, calculated without converting to geo: {opt.crow_dist * len_f}\n({len_f=})')
     if opt.save_gif:
         create_gif(gen_best, pset, opt)
-    # interesting final notes:
-    logging.info(f'hof[0] length, calculated without converting to geo: {opt.crow_dist * len_f}\n({len_f=})')
     logging.info('[FINISHED]')
 
 if __name__ == "__main__":

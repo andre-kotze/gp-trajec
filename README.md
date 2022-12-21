@@ -68,7 +68,7 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | no_plot | `Bool` | don't save results png |
 | save_gif | `Bool` | save results gif |
 | short_gif | `Bool` | only show stepwise improvement in gif |
-| gif_zoom | `float` | zoom level for gif |
+| map_zoom | `float` | zoom level for solution map |
 | sol_txt | `Bool` | save solution as txt |
 | threshold | `float` | max fitness to plot (factor of direct distance) |
 | no_intersect | `Bool` | invalidate any intersecting lines |
@@ -149,16 +149,17 @@ Visualising the evolution:
 - implement stop criteria
 - fix 3D rotation matrices in doc
 - implement chunksize
+- improved error handling
 
 ### Done
 
 - transform function into 2D line and map onto 2D interval
 - transform function into 3D line and map onto 3D interval
 - auto-fill results/tests table
-- except Keyboard Interrupt during multiprocessing
+- gracefully accept KeyboardInterrupt exception during multiprocessing
 - load default config and update with passed args
 - plot solution map and metrics
-- implement elitisms
+- implement elitism
 - fix 2D rotation matrix in gptrajec.py
 - multiprocessing enablable
 - add params: tournsize, init_min, init_max

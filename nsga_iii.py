@@ -11,28 +11,30 @@ import signal
 import numpy as np
 from deap import base, creator, tools, gp
 from shapely.geometry import LineString
-from gptrajec import transform_2d, eaTrajec
+from gptrajec import transform_2d, transform_3d, eaTrajec
 import validation as v
 
 # division operator immune to ZeroDivisionError
 def protectedDiv(left, right):
-    return 1 if right == 0 else left/right
+    return 1 if math.isclose(right,0) else left/right
 
 # initialise the primitive set
-pset = gp.PrimitiveSet("MAIN", 1)
+pset = gp.PrimitiveSet("MAIN", 2)
 pset.addPrimitive(operator.add, 2)
 pset.addPrimitive(operator.sub, 2)
 pset.addPrimitive(operator.mul, 2)
 #pset.addPrimitive(protectedDiv, 2)
 pset.addPrimitive(operator.neg, 1)
-#pset.addPrimitive(operator.pow, 2) # Try this one some time . . .
-# Also conider math.cbrt, math.exp, math.exp2, math.expm1, math.log, math.sqrt, math.tanh
+# Doesn't work (overflows): operator.pow, math.exp
+# Works: math.tanh (degrades)
+# Also conider math.cbrt, math.exp2, math.expm1, math.log, math.sqrt
 pset.addPrimitive(math.cos, 1)
 pset.addPrimitive(math.sin, 1)
 pset.addEphemeralConstant("rand101", lambda: random.randint(-1,1))
 # we will pass X coordinate and expect Y coordinate
 # later (NOW), we will pass X to two different function trees, yielding Y and Z
 pset.renameArguments(ARG0='x')
+pset.renameArguments(ARG1='z')
 
 # create required classes
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
@@ -45,8 +47,16 @@ creator.create("DblIndividual", list, fitness=creator.FitnessMin)
 toolbox = base.Toolbox()
 toolbox.register("compile", gp.compile, pset=pset)
 
+def pair_up(generator): # NOT USED RN
+    # returns a simple list pair of generator yield
+    return [generator(), generator()]
+
+def initRepeat2(container, func):
+    return container(func() for _ in range(2))
+
 # **makes no sense but params and individual args are switched:
 def evalPath_2d(params, individual):
+    #print(f'RECEIVED IND: {individual=}\n{type(individual)=}\n{type(individual[0])=}')
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
     # Validate the line (only requirement is non-intersection)
@@ -69,15 +79,28 @@ def evalPath_2d(params, individual):
     return fitness,
 
 def evalPath_3d(params, individual):
-    # Transform the tree expression in a callable function
+    #print(f'RECEIVED IND: {individual=}\n{type(individual)=}\n{type(individual[0])=}\n{individual[0]=}')
+    x = params['x']
+    # Transform the tree expression in a callable function...
+    # for Dbl_Inds:
+    #yfunc = toolbox.compile(expr=individual[0])
+    #zfunc = toolbox.compile(expr=individual[1])
+    #y = [yfunc(p) for p in x]
+    #z = [zfunc(p) for p in x]
+    # for hildemann:
     func = toolbox.compile(expr=individual)
     # Validate the line (only requirement is non-intersection)
-    x = params['x']
-    y = [func(p) for p in x]
-    line = transform_2d(np.column_stack((x, y)), params['interval'])
+    y = [func(p, 0) for p in x]
+    z = [func(0, p) for p in x]
+    
+    line = transform_3d(np.column_stack((x, y, z)), params['interval'])
     line = LineString(line)
     if params['no_intersect']:
-        valid = v.validate_3d(line, params)
+        # to save some validation time, check path intersection with global min-max:
+        if any(zc <= 0 for zc in z) or any(zc >= 1000 for zc in z):
+            valid = False
+        else:
+            valid = v.validate_3d(line, params)
         if valid:
         # Evaluate the fitness (only consider length)
             fitness = line.length
@@ -114,11 +137,13 @@ def main(cfg):
 
     # toolbox registrations taking args are done here: 
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=cfg.init_min, max_=cfg.init_max)
+    toolbox.register("expr_pair", pair_up, toolbox.expr)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
-    toolbox.register("dbl_individual", tools.initIterate, creator.DblIndividual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    toolbox.register("dbl_individual", initRepeat2, creator.DblIndividual, toolbox.individual)
     toolbox.register("dbl_population", tools.initRepeat, list, toolbox.dbl_individual)
-    toolbox.register("evaluate", evalPath_2d, eval_args)
+    
     toolbox.register("select", tools.selTournament, tournsize=cfg.tournsize)
     toolbox.register("mate", gp.cxOnePoint)
     toolbox.register("expr_mut", gp.genFull, min_=cfg.init_min, max_=cfg.init_max)
@@ -133,12 +158,18 @@ def main(cfg):
 
     # initialise initial pop and hof
     # here 2d and 3 methods diverge:
-    if not cfg.only_2d: # then 3D
-        pop = toolbox.dbl_population(cfg.pop_size)
-    else:
+    if cfg.enable_3d:
+        if cfg.hildemann_3d:
+            pop = toolbox.population(cfg.pop_size)
+        else:
+            pop = toolbox.dbl_population(cfg.pop_size)
+        #pop_z = toolbox.population(cfg.pop_size)
+        #pop = [creator.DblIndividual]
+        toolbox.register("evaluate", evalPath_3d, eval_args)
+    else: # then 2D
         pop = toolbox.population(cfg.pop_size) # default 300
+        toolbox.register("evaluate", evalPath_2d, eval_args)
     hof = tools.HallOfFame(cfg.hof_size) # default 1
-
 
     # initialise stats
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
@@ -151,6 +182,7 @@ def main(cfg):
 
     # and, action!
     pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 
+                                dbl_inds_3d=(cfg.enable_3d and not cfg.hildemann_3d),
                                 cxpb=cfg.cxpb, 
                                 mutpb=cfg.mutpb, 
                                 ngen=cfg.ngen, 

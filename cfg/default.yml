@@ -1,32 +1,36 @@
 ---
 dataset:
-  barriers: example_space
-  origin: ex0
-  destination: ex1
+  barriers: clokes
+  origin: bc
+  destination: tc
 defaults:
-  only_2d: True
+  enable_3d: True
+  hildemann_3d: True
+  # 3d methods:
+  # -hildemann
+  # -kotze
   ngen: 250
   nsegs: 100
   start: 0
   end: 1
-  pop_size: 300
+  pop_size: 300 #300
   cxpb: 0.5
   mutpb: 0.1
   max_height: 8
   max_length: 80
   init_min: 1
-  init_max: 2
+  init_max: 5 # 2
   elitism: True
   tournsize: 3
   patience: 100
   hof_size: 3
   seed: 151
-  multiproc: imap
+  multiproc: imap #imap
   chunksize: None
 validation:
   threshold: 2
-  no_intersect: False
-  validation_3d: delaunay
+  no_intersect: True
+  validation_3d: shapely
   # 3d validation options:
   # -delaunay
   # -shapely
@@ -44,5 +48,5 @@ visualisation:
   no_plot: False
   save_gif: False
   short_gif: True
-  gif_zoom: 0.15
+  map_zoom: 0.2
   sol_txt: False
