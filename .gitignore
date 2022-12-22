@@ -16,6 +16,7 @@ logs/
 
 # Testing
 test/
+gp-trajec311.sh
 
 # Notebooks
 .ipynb_checkpoints/

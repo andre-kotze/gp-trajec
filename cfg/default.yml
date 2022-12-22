@@ -23,7 +23,7 @@ defaults:
   elitism: True
   tournsize: 3
   patience: 100
-  hof_size: 3
+  hof_size: 10
   seed: 151
   multiproc: imap #imap
   chunksize: None
@@ -47,6 +47,7 @@ logging:
 visualisation:
   no_plot: False
   save_gif: False
+  save_geojson: True
   short_gif: True
   map_zoom: 0.2
   sol_txt: False

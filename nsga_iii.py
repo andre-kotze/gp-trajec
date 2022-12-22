@@ -94,6 +94,7 @@ def evalPath_3d(params, individual):
     z = [func(0, p) for p in x]
     
     line = transform_3d(np.column_stack((x, y, z)), params['interval'])
+    line_norm = np.linalg.norm(line)
     line = LineString(line)
     if params['no_intersect']:
         # to save some validation time, check path intersection with global min-max:
@@ -103,7 +104,9 @@ def evalPath_3d(params, individual):
             valid = v.validate_3d(line, params)
         if valid:
         # Evaluate the fitness (only consider length)
-            fitness = line.length
+            # line.length only works 2D
+            fitness = line.length + np.mean([coord[2] for coord in line.coords])
+            #fitness = line_norm
         else:
         # Severely penalise invalid lines
             fitness = eval(params['inv_cost'], {}, {"length": line.length})

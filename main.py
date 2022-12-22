@@ -135,7 +135,7 @@ def create_gif(gen_best, pset, opts):
     logging.info(f'# GIF created in {round(dur, 2)}s')
 
 def plot_log(log, hof, pset, opts, params, result):
-    fig1 = plt.figure(figsize=[12,9], constrained_layout=True)
+    fig1 = plt.figure(figsize=[12,10], constrained_layout=True)
     gs = GridSpec(2,4,figure=fig1,height_ratios=[3,1])
     fig1.suptitle(f'Pathing Result for {opts.name}', fontproperties=t_style)
     ax1 = fig1.add_subplot(gs[0,-1])
@@ -148,17 +148,18 @@ def plot_log(log, hof, pset, opts, params, result):
     
     ax2.set_title('Fitness (Pop Best)', t_style)
     ax3.set_title('Solution Size (Pop Mean)', t_style)
-    ax4.set_title('Evaluation Time (s)', t_style)
+    ax4.set_title('Evaluation Time (s/gen)', t_style)
     
     if opts.enable_3d:
         x, y, z = np.column_stack(opts.interval)
         ax0 = fig1.add_subplot(gs[0,:-1], projection='3d')
         ax5 = fig1.add_subplot(gs[1,3], projection='3d')
         ax0.scatter(x, y, z, color=PT_COL, marker='x')
-        ax0.set_zlim(0, None)
+        ax0.set_zlim(0, 2500)
         for barrier in barriers[opts.barriers].geoms:
-            ax0.plot(*barrier.exterior.xy, zs=0, zdir='z', alpha=1)
-            ax0.plot(*barrier.exterior.xy, zs=300, zdir='z', alpha=1)
+            for zlevel in np.linspace(0,300,10):
+                ax0.plot(*barrier.exterior.xy, zs=zlevel, zdir='z', alpha=0.7, color='r')
+                #ax0.fill(*barrier.exterior.xy, alpha=0.9, fc='r')
     else: # 2d
         x, y = np.column_stack(opts.interval)
         ax0 = fig1.add_subplot(gs[0,:-1])
@@ -173,20 +174,21 @@ def plot_log(log, hof, pset, opts, params, result):
     len_factor = 0
 
     for n, solution in enumerate(hof):
+        # ToDo: export solutions as geographic lines
         if opts.enable_3d:
             if not opts.hildemann_3d:
                 yfunc = gp.compile(expr=solution[0], pset=pset)
                 zfunc = gp.compile(expr=solution[1], pset=pset)
-                y = [yfunc(p) for p in x]
-                z = [zfunc(p) for p in x]
+                y = [yfunc(p) for p in opts.x]
+                z = [zfunc(p) for p in opts.x]
             else:
                 func = gp.compile(expr=solution, pset=pset)
-                y = [func(p, 0) for p in x]
-                z = [func(0, p) for p in x]
-            line = transform_3d(np.column_stack((x, y, z)), opts.interval)
+                y = [func(p, 0) for p in opts.x]
+                z = [func(0, p) for p in opts.x]
+            line = transform_3d(np.column_stack((opts.x, y, z)), opts.interval)
             ax0.plot(line[:,0], line[:,1], line[:,2], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
             if n == 0:
-                ax5.plot(x,y,z)
+                ax5.plot(opts.x,y,z)
         else:
             ln_func = gp.compile(expr=solution, pset=pset)
             y = np.array([ln_func(xc) for xc in opts.x])
@@ -204,7 +206,7 @@ def plot_log(log, hof, pset, opts, params, result):
     ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"), color='y')
     ax4.plot(log.select('dur'), color='b')
-    #ax0.set_aspect('equal')
+    ax0.set_aspect('equal')
 
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
