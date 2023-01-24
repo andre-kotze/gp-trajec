@@ -1,6 +1,5 @@
 import random
 import time
-import sys
 from copy import deepcopy
 
 import numpy as np
@@ -10,6 +9,9 @@ from deap import tools, algorithms
 from tqdm import tqdm
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation as R
+
+def is_valid(ind):
+    return not np.isnan(ind.fitness.values[0])
 
 def varAnd_pairs(population, toolbox, cxpb, mutpb):
     # This part has been modified to vary individuals that consist of pairs of 
@@ -35,8 +37,16 @@ def varAnd_pairs(population, toolbox, cxpb, mutpb):
 
     return offspring 
 
-def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__, mp_pool=None, elitism=False):
+def hull_from_poly(poly):
+    high_pts = np.array(poly.exterior.coords)
+    x, y = poly.exterior.xy
+    z = np.zeros(len(x))
+    low_pts = np.column_stack((x,y,z))
+    pts = np.append(high_pts, low_pts, axis=0)
+    return ConvexHull(pts)
+
+def eaTrajec(population, toolbox, cfg, stats=None,
+             halloffame=None, mp_pool=None):
     """This is a modified version of eaSimple, the simplest evolutionary 
     algorithm as presented in chapter 7 of [Back2000]_.
 
@@ -96,7 +106,7 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
        Basic Algorithms and Operators", 2000.
     """
     logbook = tools.Logbook()
-    logbook.header = ['gen', 'nevals', 'dur'] + (stats.fields if stats else [])
+    logbook.header = ['gen', 'nevals', 'dur', 'best'] + (stats.fields if stats else [])
     pop_size = len(population)
     # NEW: record best of generation
     gen_best = []
@@ -111,23 +121,42 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
         ind.fitness.values = fit
 
     # NEW: discard invalid individuals
-    #population = list(filter(is_valid, population))
+    # here we enter a sub-loop to populate pop_size
+    if cfg.delete_invalid:
+        # remove invalids
+        print('Generating all-valid starting population')
+        print('counting valid inds every 10 iterations')
+        iter = 0
+        population = list(filter(is_valid, population))
+        # generate new inds until pop full
+        while len(population) < pop_size:
+            iter += 1
+            population.extend(toolbox.population(pop_size - len(population)))
+            invalid_ind = [ind for ind in population if not ind.fitness.valid]
+            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
+            population = list(filter(is_valid, population))
+            if iter % 10 == 0:
+                print(len(population))
 
     if halloffame is not None:
         halloffame.update(population)
         hof_size = len(halloffame.items) if halloffame.items else 0
-    elif elitism:
+    elif cfg.elitism:
         raise ValueError('implementing elitism requires non-empty hof parameter')
 
     record = stats.compile(population) if stats else {}
-    logbook.record(gen=0, nevals=len(invalid_ind), dur=0, **record)
-    if verbose:
+    best = tools.selBest(population, 1)
+    logbook.record(gen=0, nevals=len(invalid_ind), dur=0, best=round(best[0].fitness.getValues()[0],2), **record)
+    if cfg.verbose:
         print(logbook.stream)
 
     # NEW: Instantiate tqdm outside for control of description
-    run = tqdm(range(1, ngen + 1))
+    run = tqdm(range(1, cfg.ngen + 1), position=1)
     # Begin the generational process
     interrupted = False
+    gens_without_improvement = 0
     for gen in run:
         try:
             t0 = time.perf_counter()
@@ -135,16 +164,16 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
             #population.extend(toolbox.population(pop_size - len(population)))
             # Select the next generation individuals
             # NEW: if using elitism, inject hof into offspring
-            if elitism:
+            if cfg.elitism:
                 offspring = toolbox.select(population, pop_size - hof_size)
             else:
                 offspring = toolbox.select(population, pop_size)
 
             # Vary the pool of individuals
-            if dbl_inds_3d:
-                offspring = varAnd_pairs(offspring, toolbox, cxpb, mutpb)
-            else:
-                offspring = algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
+            #if dbl_inds_3d:
+            #    offspring = varAnd_pairs(offspring, toolbox, cxpb, mutpb)
+            #else:
+            offspring = algorithms.varAnd(offspring, toolbox, cfg.cxpb, cfg.mutpb)
 
             t1 = time.perf_counter()
             durs['prep'].append(t1 - t0)
@@ -170,10 +199,21 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
                 ind.generation = gen
             
             #NEW: elitism: inject hof into population:
-            if elitism:
+            if cfg.elitism:
                 offspring.extend(halloffame.items)
             # NEW: discard invalid individuals
-            #offspring = filter(is_valid, offspring)
+            # here we enter a sub-loop to populate pop_size
+            if cfg.delete_invalid:
+                # remove invalids
+                offspring = list(filter(is_valid, offspring))
+                # generate new inds until pop full
+                while len(offspring) < pop_size:
+                    offspring.extend(toolbox.population(pop_size - len(offspring)))
+                    invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+                    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+                    for ind, fit in zip(invalid_ind, fitnesses):
+                        ind.fitness.values = fit
+                    offspring = list(filter(is_valid, offspring))
 
             t2 = time.perf_counter()
             durs['eval'].append(t2 - t1)
@@ -196,8 +236,23 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
 
             # Append the current generation statistics to the logbook
             record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), **record)
-            if verbose:
+            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), best=round(best[0].fitness.getValues()[0],2), **record)
+
+            # NEW: this is the end of the generation, here we check the stopping criteria
+            if best[0].fitness.getValues()[0] == halloffame[0].fitness.getValues()[0]:
+                gens_without_improvement += 1
+            else:
+                gens_without_improvement = 0
+
+            if cfg.patience and gens_without_improvement >= cfg.patience:
+                if mp_pool:
+                    mp_pool.terminate()
+                    mp_pool.join()
+                exit_msg = f'# Completed {gen} of {cfg.ngen} generations (end of patience reached)'
+                run.close()
+                break
+
+            if cfg.verbose:
                 tqdm.write(logbook.stream)
             if interrupted:
                 raise KeyboardInterrupt
@@ -205,7 +260,7 @@ def eaTrajec(population, toolbox, dbl_inds_3d, cxpb, mutpb, ngen, stats=None,
             if mp_pool:
                 mp_pool.terminate()
                 mp_pool.join()
-            exit_msg = f'# Completed {gen} of {ngen} generations'
+            exit_msg = f'# Completed {gen} of {cfg.ngen} generations (stopped by user)'
             run.close()
             break
         else:
@@ -376,7 +431,7 @@ def transform_3d(line, dest, intermediates=False, printing=False):
         return line, [transed, normed, roted, post_scale], rotator[0].as_rotvec(degrees=True)
     else:
         return line
-    # numpy array like [[x,y,z,1],[x,y,z,1],...]
+    # numpy array like [[x,y,z],[x,y,z],...]
 
 '''
 def faces_from_poly(polygon):

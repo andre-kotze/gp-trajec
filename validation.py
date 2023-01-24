@@ -64,11 +64,17 @@ def validate_2_5d(individual, params):
                     return False
     return True
 
-#def flexible_validate_3d(individual, params):
-#    intersection = 0
-#    for barrier in barriers[params['barriers']].geoms:
-#        intersection += barrier.intersection(individual).length
-#    return eval(params['int_cost'], {}, {"intersection": intersection})
+def flexible_validate_2_5d(individual, params):
+    intersection = 0
+    for barrier in barriers3[params['barriers']].geoms:
+        if individual.intersects(barrier):
+            intersect_geom = individual.intersection(barrier)
+            if isinstance(intersect_geom, MultiLineString):
+                for part in intersect_geom.geoms:
+                    intersection += (part.length * (len([coord for coord in part.coords if coord[2] < 300]) / len(part.coords)))
+            else:
+                intersection += (intersect_geom.length * (len([coord for coord in intersect_geom.coords if coord[2] < 300]) / len(intersect_geom.coords)))
+    return eval(params['int_cost'], {}, {"intersection": intersection})
 
 #
 #   3D (scipy.spatial)
@@ -116,7 +122,7 @@ def triangles(vertices, ray_origin, ray_direction):
 def delauney_val(hulls, points):
     for hull in hulls:
         for point in points:
-            if Delaunay(hull).find_simplex(point) >= 0: # <0 when intersecting
+            if Delaunay(hull).find_simplex(point) >= 0: # True when intersecting
                 return False
     return True
 
@@ -131,7 +137,7 @@ def validate_3d(individual, params):
         if hulls_equal(poly, point):
             pass
     elif val_type == 'delaunay':
-        return delauney_val(example_points, list(individual.coords))
+        return delauney_val(barriers3[params['barriers']], list(individual.coords))
     elif val_type == 'shapely':
         return validate_2_5d(individual, params)
     elif val_type == 'linprog':

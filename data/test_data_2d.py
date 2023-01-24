@@ -84,6 +84,7 @@ with fiona.open('./data/example_space.gpkg', layer='example_space') as layer:
 example_space = MultiPolygon(example_space)
 
 barriers = {'clokes': clokes,
+            'clokes_simp':clokes,
             'islas': islas,
             'example_space': example_space}
 

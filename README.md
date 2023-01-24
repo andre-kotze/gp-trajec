@@ -140,15 +140,18 @@ Visualising the evolution:
 
 ![Alt Text](demo/6Nov_bc-tc_test.png)
 
+## 3-Dimensional Results
+
+100 generations for optimising the 3D path through Clove Lakes subset:
+
+![Alt Text](demo/test_3d.png)
+
 ### ToDo
 
-- implement 3D
-  - gp individuals need to be sets of trees
-  - tree pairs to be evaluated in tandem
+- implement concave 3D
 - plot 3D
 - implement stop criteria
 - fix 3D rotation matrices in doc
-- implement chunksize
 - improved error handling
 
 ### Done
@@ -161,10 +164,12 @@ Visualising the evolution:
 - plot solution map and metrics
 - implement elitism
 - fix 2D rotation matrix in gptrajec.py
-- multiprocessing enablable
+- multiprocessing enablable and chunksize passable
 - add params: tournsize, init_min, init_max
+- implement 2.5D
+- basic plot 3D
 
 ### Didn't work
 
 - imap_unordered doesn't work, unless Ind ID is passed back and forth
-- (n+1)D matrices for n-D transformations. They work, but are unnecessary (apparently)
+- (n+1)D matrices for n-D transformations. They work, but are unnecessary

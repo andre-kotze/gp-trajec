@@ -13,8 +13,9 @@ from data.test_data_2d import barriers, pts
 from data.test_data_3d import barriers3, pts3
 import numpy as np
 from gptrajec import transform_2d, transform_3d
-from shapely.geometry import LineString
-from nsga_iii import main as nsga_main
+from shapely.geometry import LineString, MultiPoint
+from shapely import wkt
+from deap_gp import main as gp_main
 from deap import gp
 from rich.logging import RichHandler
 
@@ -176,15 +177,9 @@ def plot_log(log, hof, pset, opts, params, result):
     for n, solution in enumerate(hof):
         # ToDo: export solutions as geographic lines
         if opts.enable_3d:
-            if not opts.hildemann_3d:
-                yfunc = gp.compile(expr=solution[0], pset=pset)
-                zfunc = gp.compile(expr=solution[1], pset=pset)
-                y = [yfunc(p) for p in opts.x]
-                z = [zfunc(p) for p in opts.x]
-            else:
-                func = gp.compile(expr=solution, pset=pset)
-                y = [func(p, 0) for p in opts.x]
-                z = [func(0, p) for p in opts.x]
+            func = gp.compile(expr=solution, pset=pset)
+            y = [func(p, 0) for p in opts.x]
+            z = [func(0, p) for p in opts.x]
             line = transform_3d(np.column_stack((opts.x, y, z)), opts.interval)
             ax0.plot(line[:,0], line[:,1], line[:,2], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
             if n == 0:
@@ -226,7 +221,7 @@ def main(opt, pars):
     logging.info((f'# Displacement is {opt.crow_dist:.2f}, '
     f'performance threshold set to {opt.threshold:.2f}'))
     opt.x = np.linspace(opt.start,opt.end,opt.nsegs) # don't need x here
-    pop, log, hof, pset, gen_best, durs, msg = nsga_main(opt)
+    pop, log, hof, pset, gen_best, durs, msg = gp_main(opt)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
     params = yaml.dump(pars, sort_keys=False, allow_unicode=True, indent=4)
@@ -247,13 +242,20 @@ def main(opt, pars):
         #solution_curve = LineString(np.array([[xc, solution_fx(xc)] for xc in opt.x]))
         # OOPS: must actually run intersect in the same space...
         #valid_solution = not(any([solution_curve.intersects(barrier) for barrier in barriers[opt.barriers].geoms]))
-    # the quick way to check validity of hof[0]:
-    valid_solution = optimum < (2*opt.crow_dist)
-    logging.info(f'\n# final solution valid: {valid_solution}\n')
     if opt.sol_txt:
         with open(f'logs/solutions/{opt.name}', 'w') as txt:
             txt.write(str(hof[0]))
         logging.info('# sol.txt saved')
+    if opt.save_geojson:
+        func = gp.compile(expr=hof[0], pset=pset)
+        y = [func(p, 0) for p in opt.x]
+        z = [func(0, p) for p in opt.x]
+        coords = MultiPoint(transform_3d(np.column_stack((opt.x, y, z)), opt.interval))
+        with open(f'{opt.name}_wkt.txt', 'w') as output:
+            output.write(wkt.dumps(coords))
+        logging.info('# geojson.json saved')
+        #valid_solution = optimum < (2*opt.crow_dist)
+        #logging.info(f'\n# final solution valid: {valid_solution}\n')
     if not opt.no_record:
         with open('logs/tests.csv', 'r+') as logtable:
             # ToDo: start fresh log if none exists

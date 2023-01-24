@@ -1,0 +1,4 @@
+#!/bin/bash
+
+echo GP-Trajec 3D Launcher && cd MasterGeoTech/THESIS/gp-trajec/ && set-title gp-trajec311 && conda activate gp-trajec311
+

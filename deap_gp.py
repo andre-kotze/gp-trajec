@@ -1,7 +1,3 @@
-# Non-dominated Sorting Genetic Algorithm III (NSGA-III)
-# https://deap.readthedocs.io/en/master/index.html
-
-# Creating the primitive set
 import operator
 import random
 import math
@@ -31,32 +27,21 @@ pset.addPrimitive(operator.neg, 1)
 pset.addPrimitive(math.cos, 1)
 pset.addPrimitive(math.sin, 1)
 pset.addEphemeralConstant("rand101", lambda: random.randint(-1,1))
-# we will pass X coordinate and expect Y coordinate
-# later (NOW), we will pass X to two different function trees, yielding Y and Z
+# we will pass "progress" points and expect lateral and vertical deviation points returned
 pset.renameArguments(ARG0='x')
 pset.renameArguments(ARG1='z')
 
 # create required classes
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
-# DblIndividual is a list of two Individuals with its own fitness
-# must be list, to be mutable
 creator.create("DblIndividual", list, fitness=creator.FitnessMin)
 
 # create toolbox instance
 toolbox = base.Toolbox()
 toolbox.register("compile", gp.compile, pset=pset)
 
-def pair_up(generator): # NOT USED RN
-    # returns a simple list pair of generator yield
-    return [generator(), generator()]
-
-def initRepeat2(container, func):
-    return container(func() for _ in range(2))
-
 # **makes no sense but params and individual args are switched:
 def evalPath_2d(params, individual):
-    #print(f'RECEIVED IND: {individual=}\n{type(individual)=}\n{type(individual[0])=}')
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
     # Validate the line (only requirement is non-intersection)
@@ -70,24 +55,18 @@ def evalPath_2d(params, individual):
         # Evaluate the fitness (only consider length)
             fitness = line.length
         else:
-        # Severely penalise invalid lines
-            fitness = eval(params['inv_cost'], {}, {"length": line.length})
-        # or invalidate line completely
-            #fitness = False
+            if params['delete_invalid']:
+                fitness = np.nan
+            else:
+            # Severely penalise invalid lines
+                fitness = eval(params['inv_cost'], {}, {"length": line.length})
     else:
         fitness = v.flexible_validate_2d(line, params) + line.length
     return fitness,
 
 def evalPath_3d(params, individual):
-    #print(f'RECEIVED IND: {individual=}\n{type(individual)=}\n{type(individual[0])=}\n{individual[0]=}')
     x = params['x']
     # Transform the tree expression in a callable function...
-    # for Dbl_Inds:
-    #yfunc = toolbox.compile(expr=individual[0])
-    #zfunc = toolbox.compile(expr=individual[1])
-    #y = [yfunc(p) for p in x]
-    #z = [zfunc(p) for p in x]
-    # for hildemann:
     func = toolbox.compile(expr=individual)
     # Validate the line (only requirement is non-intersection)
     y = [func(p, 0) for p in x]
@@ -95,10 +74,11 @@ def evalPath_3d(params, individual):
     
     line = transform_3d(np.column_stack((x, y, z)), params['interval'])
     line_norm = np.linalg.norm(line)
+    geo_z = line[:,2]
     line = LineString(line)
     if params['no_intersect']:
         # to save some validation time, check path intersection with global min-max:
-        if any(zc <= 0 for zc in z) or any(zc >= 1000 for zc in z):
+        if any(zc <= 0 for zc in geo_z) or any(zc >= 1000 for zc in geo_z):
             valid = False
         else:
             valid = v.validate_3d(line, params)
@@ -108,12 +88,13 @@ def evalPath_3d(params, individual):
             fitness = line.length + np.mean([coord[2] for coord in line.coords])
             #fitness = line_norm
         else:
-        # Severely penalise invalid lines
-            fitness = eval(params['inv_cost'], {}, {"length": line.length})
-        # or invalidate line completely
-            #fitness = False
+            if params['delete_invalid']:
+                fitness = np.nan
+            else:
+            # Severely penalise invalid lines
+                fitness = eval(params['inv_cost'], {}, {"length": line.length})
     else:
-        fitness = v.flexible_validate_3d(line, params) + line.length
+        fitness = v.flexible_validate_2_5d(line, params) + line.length + np.mean([coord[2] for coord in line.coords])
     return fitness,
 
 # NEW: for multiprocessing
@@ -136,18 +117,18 @@ def main(cfg):
                 'validation_3d' : cfg.validation_3d,
                 'no_intersect' : cfg.no_intersect,
                 'inv_cost' : cfg.invalidity_cost,
-                'int_cost' : cfg.intersection_cost}
+                'int_cost' : cfg.intersection_cost,
+                'delete_invalid' : cfg.delete_invalid}
 
     # toolbox registrations taking args are done here: 
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=cfg.init_min, max_=cfg.init_max)
-    toolbox.register("expr_pair", pair_up, toolbox.expr)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-
-    toolbox.register("dbl_individual", initRepeat2, creator.DblIndividual, toolbox.individual)
-    toolbox.register("dbl_population", tools.initRepeat, list, toolbox.dbl_individual)
     
-    toolbox.register("select", tools.selTournament, tournsize=cfg.tournsize)
+    if cfg.dbl_tourn:
+        toolbox.register("select", tools.selDoubleTournament, fitness_size=cfg.tournsize, parsimony_size=cfg.parsimony_size, fitness_first=cfg.fitness_first)
+    else:
+        toolbox.register("select", tools.selTournament, tournsize=cfg.tournsize)
     toolbox.register("mate", gp.cxOnePoint)
     toolbox.register("expr_mut", gp.genFull, min_=cfg.init_min, max_=cfg.init_max)
     toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
@@ -162,12 +143,7 @@ def main(cfg):
     # initialise initial pop and hof
     # here 2d and 3 methods diverge:
     if cfg.enable_3d:
-        if cfg.hildemann_3d:
-            pop = toolbox.population(cfg.pop_size)
-        else:
-            pop = toolbox.dbl_population(cfg.pop_size)
-        #pop_z = toolbox.population(cfg.pop_size)
-        #pop = [creator.DblIndividual]
+        pop = toolbox.population(cfg.pop_size)
         toolbox.register("evaluate", evalPath_3d, eval_args)
     else: # then 2D
         pop = toolbox.population(cfg.pop_size) # default 300
@@ -185,15 +161,10 @@ def main(cfg):
 
     # and, action!
     pop, log, gen_best, durs, msg = eaTrajec(pop, toolbox, 
-                                dbl_inds_3d=(cfg.enable_3d and not cfg.hildemann_3d),
-                                cxpb=cfg.cxpb, 
-                                mutpb=cfg.mutpb, 
-                                ngen=cfg.ngen, 
+                                cfg,
                                 stats=mstats,
-                                halloffame=hof, 
-                                verbose=cfg.verbose, 
-                                mp_pool=pool,
-                                elitism=cfg.elitism)
+                                halloffame=hof,
+                                mp_pool=pool)
     return pop, log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":

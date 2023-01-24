@@ -1,35 +1,36 @@
 ---
 dataset:
-  barriers: clokes
-  origin: bc
-  destination: tc
+  barriers: clokes_simp
+  origin: e
+  destination: i
 defaults:
   enable_3d: True
-  hildemann_3d: True
-  # 3d methods:
-  # -hildemann
-  # -kotze
-  ngen: 250
+  ngen: 200
   nsegs: 100
   start: 0
   end: 1
   pop_size: 300 #300
-  cxpb: 0.5
-  mutpb: 0.1
+  cxpb: 0.5 #0.5
+  mutpb: 0.1 #0.1
   max_height: 8
   max_length: 80
   init_min: 1
-  init_max: 5 # 2
+  init_max: 2 # 2
+  mut_min: 1
+  mut_max: 2
   elitism: True
-  tournsize: 3
-  patience: 100
-  hof_size: 10
+  dbl_tourn: False # False
+  tournsize: 3 # also fitness_size 
+  parsimony_size: 1.7 # range[1,2]
+  fitness_first: True
+  patience: 600
+  hof_size: 3 # 3
   seed: 151
   multiproc: imap #imap
   chunksize: None
 validation:
   threshold: 2
-  no_intersect: True
+  no_intersect: False
   validation_3d: shapely
   # 3d validation options:
   # -delaunay
@@ -38,8 +39,9 @@ validation:
   # -linprog
   # -triangles
   # -postgis
-  invalidity_cost: length*100
+  invalidity_cost: length*10
   intersection_cost: intersection**2
+  delete_invalid: False
 logging:
   no_log: False
   no_record: False
