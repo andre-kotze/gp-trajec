@@ -4,6 +4,8 @@ from shapely.geometry import MultiLineString, Polygon, MultiPolygon, Point, shap
 from gptrajec import hull_from_poly
 import fiona
 
+global_max_z = 500
+
 ##### BARRIERS
 test_hull_pts = np.array([[25,25,0],
                         [15,25,0],
@@ -71,6 +73,13 @@ with fiona.open('./data/example_space_subset.gpkg', layer='example_space_subset'
         example_space.append(shape(feat['geometry']).geoms[0])
 example_space = MultiPolygon(example_space)
 
+exampspc_simp = []
+#with fiona.open('./data/exampspc_simp_z_added.gpkg', layer='z_added') as layer:
+with fiona.open('./data/example_space_subset.gpkg', layer='simp_z') as layer:
+    for feat in layer:
+        exampspc_simp.append(shape(feat['geometry']).geoms[0])
+exampspc_simp = MultiPolygon(exampspc_simp)
+
 example_hulls = [hull_from_poly(poly) for poly in example_space.geoms]
 cl_simp_hulls = [hull_from_poly(poly) for poly in clokes_simp.geoms]
 example_points = [hull.points for hull in example_hulls]
@@ -78,7 +87,8 @@ example_points = [hull.points for hull in example_hulls]
 barriers3 = {'clokes': clokes,
             'clokes_simp': clokes_simp,
             'cl_simp_hulls': cl_simp_hulls,
-            'example_space': example_space}
+            'example_space': example_space,
+            'example_space_simp': exampspc_simp}
 
 pts3['ex0'] = Point(list(example_route.geoms[0].coords[0]))
 pts3['ex1'] = Point(list(example_route.geoms[0].coords[-1]))

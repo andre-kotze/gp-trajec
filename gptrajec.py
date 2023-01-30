@@ -106,7 +106,7 @@ def eaTrajec(population, toolbox, cfg, stats=None,
        Basic Algorithms and Operators", 2000.
     """
     logbook = tools.Logbook()
-    logbook.header = ['gen', 'nevals', 'dur', 'best'] + (stats.fields if stats else [])
+    logbook.header = ['gen', 'dur', 'best'] + (stats.fields if stats else [])
     pop_size = len(population)
     # NEW: record best of generation
     gen_best = []
@@ -148,12 +148,12 @@ def eaTrajec(population, toolbox, cfg, stats=None,
 
     record = stats.compile(population) if stats else {}
     best = tools.selBest(population, 1)
-    logbook.record(gen=0, nevals=len(invalid_ind), dur=0, best=round(best[0].fitness.getValues()[0],2), **record)
+    logbook.record(gen=0, dur=0, best=round(best[0].fitness.getValues()[0],2), **record)
     if cfg.verbose:
         print(logbook.stream)
 
     # NEW: Instantiate tqdm outside for control of description
-    run = tqdm(range(1, cfg.ngen + 1), position=1)
+    run = tqdm(range(1, cfg.ngen + 1))
     # Begin the generational process
     interrupted = False
     gens_without_improvement = 0
@@ -236,21 +236,20 @@ def eaTrajec(population, toolbox, cfg, stats=None,
 
             # Append the current generation statistics to the logbook
             record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), dur=round(dur, 3), best=round(best[0].fitness.getValues()[0],2), **record)
-
-            # NEW: this is the end of the generation, here we check the stopping criteria
-            if best[0].fitness.getValues()[0] == halloffame[0].fitness.getValues()[0]:
-                gens_without_improvement += 1
-            else:
-                gens_without_improvement = 0
-
-            if cfg.patience and gens_without_improvement >= cfg.patience:
-                if mp_pool:
-                    mp_pool.terminate()
-                    mp_pool.join()
-                exit_msg = f'# Completed {gen} of {cfg.ngen} generations (end of patience reached)'
-                run.close()
-                break
+            logbook.record(gen=gen, dur=round(dur, 3), best=round(best[0].fitness.getValues()[0],2), **record)
+            if cfg.patience is not None:
+                # NEW: this is the end of the generation, here we check the stopping criteria
+                if best[0].fitness.getValues()[0] == halloffame[0].fitness.getValues()[0]:
+                    gens_without_improvement += 1
+                else:
+                    gens_without_improvement = 0
+                if gens_without_improvement >= cfg.patience:
+                    if mp_pool:
+                        mp_pool.terminate()
+                        mp_pool.join()
+                    exit_msg = f'# Completed {gen} of {cfg.ngen} generations (end of patience reached)'
+                    run.close()
+                    break
 
             if cfg.verbose:
                 tqdm.write(logbook.stream)
@@ -313,7 +312,7 @@ def transform_2d(line, dest):
 
     line[:,0] -= dx
     line[:,1] -= dy
-    return line # numpy array like [[x,y],[x,y]...]
+    return np.round(line, 2) # numpy array like [[x,y],[x,y]...]
 
 def quaternion_rotate(vec_a, vec_b):
     # v = unit vector of axis of rotation:
@@ -430,7 +429,7 @@ def transform_3d(line, dest, intermediates=False, printing=False):
     if intermediates:
         return line, [transed, normed, roted, post_scale], rotator[0].as_rotvec(degrees=True)
     else:
-        return line
+        return np.round(line, 2)
     # numpy array like [[x,y,z],[x,y,z],...]
 
 '''

@@ -5,7 +5,6 @@ import argparse
 import yaml
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from deap import tools
 from deap_gp import main as gp_main
@@ -13,7 +12,8 @@ from deap_gp import main as gp_main
 from data.test_data_2d import barriers, pts
 from data.test_data_3d import barriers3, pts3
 
-name = '3d_conv_test_int'
+name = '3d_i_d_simpl1'
+plotvar = 'best'
 
 def parse_opts():
     config = {}
@@ -22,6 +22,9 @@ def parse_opts():
     for cfg in ml_config.values():
         config.update(cfg)
     parser = argparse.ArgumentParser()
+    parser.add_argument('--runs', type=int, help='number of runs to complete')
+    parser.add_argument('--name', type=str, help='name')
+    parser.add_argument('--plot', action='store_true', help='data set to plot only')
     args = parser.parse_args()
     args = {k:v for k,v in vars(args).items() if v}
     config.update(args)
@@ -34,28 +37,30 @@ def parse_opts():
 
 def main():
     opt, pars = parse_opts()
-    opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
-                            [pts[opt.destination].x, pts[opt.destination].y]])
-    if opt.enable_3d:
-        opt.interval = np.concatenate((opt.interval, np.array([[pts3[opt.origin].z, pts3[opt.destination].z]]).T), axis=1)
-    opt.crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
-    opt.threshold *= opt.crow_dist
-    opt.x = np.linspace(opt.start,opt.end,opt.nsegs)
-    inner_optimization_loops = 10
-    df_log = pd.DataFrame()
-    for j in tqdm(range(inner_optimization_loops), position=0):
-        tqdm.write(f'Run {j+1} of {inner_optimization_loops}')
-        # set random state for inner loop with the same land use order
-        random.seed(j)
-        opt.seed = j
-        pop, log, hof, pset, gen_best, durs, msg = gp_main(opt)
-        #if df_log is None:
-        #    df_log = pd.DataFrame(log)
-        #else:
-        df_log = pd.concat([df_log, pd.DataFrame(log)])
-    df_log.to_csv(f'logs/convergence/{name}.csv', index=False)
-    sns.lineplot(data=df_log, x="gen", y="best")
-    plt.ylim(opt.threshold)
+    plot = False
+    if not plot:
+        opt.interval = np.array([[pts[opt.origin].x, pts[opt.origin].y], 
+                                [pts[opt.destination].x, pts[opt.destination].y]])
+        if opt.enable_3d:
+            opt.interval = np.concatenate((opt.interval, np.array([[pts3[opt.origin].z, pts3[opt.destination].z]]).T), axis=1)
+        opt.crow_dist = np.linalg.norm(opt.interval[0] - opt.interval[1])
+        opt.threshold *= opt.crow_dist
+        opt.x = np.linspace(opt.start,opt.end,opt.nsegs)
+        df_log = pd.DataFrame()
+        sizes = pd.Series(dtype=float)
+        for j in range(opt.runs):
+            # set random state for inner loop with the same land use order
+            random.seed(j)
+            opt.seed = j
+            pop, log, hof, pset, gen_best, durs, msg = gp_main(opt)
+            df_log = pd.concat([df_log, pd.DataFrame(log)])
+            sizes = pd.concat([sizes, pd.Series(log.chapters["size"].select("mean"))])
+        df_log['mean_size'] = sizes.round(0)
+        df_log.to_csv(f'logs/convergence/{name}.csv', index=False)
+    else:
+        df_log = pd.read_csv(f'logs/convergence/{opt.plot}')
+    sns.lineplot(data=df_log, x="gen", y=plotvar)
+    plt.ylim(0,100)
     plt.show()
 
 if __name__ == "__main__":

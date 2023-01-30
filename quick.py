@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
+'''
 def align_vectors(a, b):
      v = np.cross(a, b)
      s = np.linalg.norm(v)
@@ -48,4 +49,17 @@ ax.plot([0,point[0]],[0,point[1]], [0,point[2]], color='y')
 ax.plot([0,direction[0]],[0,direction[1]], [0,direction[2]], color='c')
 ax.plot([0,result[0]],[0,result[1]], [0,result[2]], color='r')
 ax.plot([0,result2[0]],[0,result2[1]], [0,result2[2]], color='g')
+plt.show()
+'''
+
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import pyplot as plt
+
+fig = plt.figure() 
+ax = fig.add_subplot(111,projection='3d') 
+ax.axes.set_xlim3d(left=0, right=10) 
+ax.axes.set_ylim3d(bottom=0, top=10) 
+ax.axes.set_zlim3d(bottom=2, top=6) 
+ax.scatter([5],[5],[5])
+ax.set_aspect('equal')
 plt.show()

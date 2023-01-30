@@ -7,6 +7,8 @@ import yaml
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from data.test_data_2d import barriers, pts
@@ -18,6 +20,7 @@ from shapely import wkt
 from deap_gp import main as gp_main
 from deap import gp
 from rich.logging import RichHandler
+import pygraphviz as pgv
 
 __version__ = '1.0.0'
 __author__ = 'Andre Kotze'
@@ -48,6 +51,7 @@ def parse_opts():
     for cfg in ml_config.values():
         config.update(cfg)
     parser = argparse.ArgumentParser()
+    parser.add_argument('--pop', type=int, help='number of individuals in population')
     parser.add_argument('--ngen', type=int, help='number of generations to evolve through')
     parser.add_argument('--nsegs', type=int, help='number of vertices (granularity) of the path')
     parser.add_argument('--cxpb', type=float, help='probability of two individuals reproducing')
@@ -156,11 +160,28 @@ def plot_log(log, hof, pset, opts, params, result):
         ax0 = fig1.add_subplot(gs[0,:-1], projection='3d')
         ax5 = fig1.add_subplot(gs[1,3], projection='3d')
         ax0.scatter(x, y, z, color=PT_COL, marker='x')
-        ax0.set_zlim(0, 2500)
-        for barrier in barriers[opts.barriers].geoms:
-            for zlevel in np.linspace(0,300,10):
-                ax0.plot(*barrier.exterior.xy, zs=zlevel, zdir='z', alpha=0.7, color='r')
-                #ax0.fill(*barrier.exterior.xy, alpha=0.9, fc='r')
+        #ax0.set_zlim([0, 2500])
+        for barrier in barriers3[opts.barriers].geoms:
+            #verts = [list(zip(x, y,z))]
+            #verts = [(x,y,0) for x,y in barrier.exterior.coords]
+            xs = [x for x, y, z in barrier.exterior.coords]
+            ys = [y for x, y, z in barrier.exterior.coords]
+            z = barrier.exterior.coords[0][2]
+            for plane in [0, z]:
+                zs = list(np.full(len(xs), plane))
+                #coords = [[x,y,plane] for x,y in barrier.exterior.coords]
+                coords = [list(zip(xs, ys, zs))]
+                #coords = list(zip(x,y,np.full(plane,len(x))))
+                collec = Poly3DCollection(coords)
+                collec.set_facecolor("#e41a1c")
+                collec.set_edgecolor("#770e0f")
+                ax0.add_collection3d(collec)
+            for zlevel in [0,z]:
+                ax0.plot(*barrier.exterior.xy, zs=zlevel, zdir='z', alpha=1.0, color='#770e0f')
+            for zlevel in np.linspace(0.1*z,0.9*z,8):
+                ax0.plot(*barrier.exterior.xy, zs=zlevel, zdir='z', alpha=1.0, color='#e41a1c')
+                #ax0.fill(*barrier.exterior.xy, alpha=0.6, fc='r')
+        
     else: # 2d
         x, y = np.column_stack(opts.interval)
         ax0 = fig1.add_subplot(gs[0,:-1])
@@ -168,6 +189,7 @@ def plot_log(log, hof, pset, opts, params, result):
         ax0.scatter(x, y, color=PT_COL, marker='x')
         for barrier in barriers[opts.barriers].geoms:
             ax0.fill(*barrier.exterior.xy, alpha=1, fc=GF_COL, ec='none')
+        ax0.set_aspect('equal')
 
     ax0.set_title('Solution', t_style)
     ax5.set_title('Curve', t_style)
@@ -184,6 +206,15 @@ def plot_log(log, hof, pset, opts, params, result):
             ax0.plot(line[:,0], line[:,1], line[:,2], color=LN_COL, alpha=alpha_func(n+1, len(hof)))
             if n == 0:
                 ax5.plot(opts.x,y,z)
+                minx, miny, maxx, maxy = LineString(line).bounds
+                buffx, buffy = opts.map_zoom*abs(minx - maxx), opts.map_zoom*abs(miny - maxy)
+                ax5.set_xlim3d(minx-buffx,maxx+buffx)
+                ax5.set_xlim(minx-buffx,maxx+buffx)
+                ax5.set_ylim3d(miny-buffy,maxy+buffy)
+                ax5.set_ylim(miny-buffy,maxy+buffy)
+                ax5.set_zlim3d(0,2500)
+                ax5.set_zlim(0,2500)
+                ax0.set_aspect("equal")
         else:
             ln_func = gp.compile(expr=solution, pset=pset)
             y = np.array([ln_func(xc) for xc in opts.x])
@@ -201,7 +232,7 @@ def plot_log(log, hof, pset, opts, params, result):
     ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"), color='y')
     ax4.plot(log.select('dur'), color='b')
-    ax0.set_aspect('equal')
+    
 
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
@@ -246,16 +277,31 @@ def main(opt, pars):
         with open(f'logs/solutions/{opt.name}', 'w') as txt:
             txt.write(str(hof[0]))
         logging.info('# sol.txt saved')
-    if opt.save_geojson:
+    if opt.sol_png:
+        nodes, edges, labels = gp.graph(hof[0])
+        g = pgv.AGraph()
+        g.add_nodes_from(nodes)
+        g.add_edges_from(edges)
+        g.layout(prog="dot")
+        for i in nodes:
+            n = g.get_node(i)
+            n.attr["label"] = labels[i]
+        g.draw(f"logs/solutions/{opt.name}.png")
+        logging.info('# sol.png saved')
+    if opt.save_wkt:
         func = gp.compile(expr=hof[0], pset=pset)
-        y = [func(p, 0) for p in opt.x]
-        z = [func(0, p) for p in opt.x]
-        coords = MultiPoint(transform_3d(np.column_stack((opt.x, y, z)), opt.interval))
-        with open(f'{opt.name}_wkt.txt', 'w') as output:
+        if opt.enable_3d:
+            y = [func(p, 0) for p in opt.x]
+            z = [func(0, p) for p in opt.x]
+            coords = MultiPoint(transform_3d(np.column_stack((opt.x, y, z)), opt.interval))
+        else:
+            y = [func(p) for p in opt.x]
+            coords = MultiPoint(transform_2d(np.column_stack((opt.x, y)), opt.interval))
+        with open(f'logs/wkt/{opt.name}_wkt.txt', 'w') as output:
             output.write(wkt.dumps(coords))
-        logging.info('# geojson.json saved')
-        #valid_solution = optimum < (2*opt.crow_dist)
-        #logging.info(f'\n# final solution valid: {valid_solution}\n')
+        logging.info('# sol_wkt.txt saved')
+        valid_solution = optimum < (2*opt.crow_dist)
+        logging.info(f'\n# final solution valid: {valid_solution}\n')
     if not opt.no_record:
         with open('logs/tests.csv', 'r+') as logtable:
             # ToDo: start fresh log if none exists

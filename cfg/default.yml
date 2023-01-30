@@ -1,21 +1,21 @@
 ---
 dataset:
-  barriers: clokes_simp
-  origin: e
-  destination: i
+  barriers: example_space_simp
+  origin: ex0
+  destination: ex1
 defaults:
   enable_3d: True
-  ngen: 200
-  nsegs: 100
+  ngen: 250 # 250
+  nsegs: 100 # 100
   start: 0
   end: 1
-  pop_size: 300 #300
+  pop_size: 500 #300
   cxpb: 0.5 #0.5
   mutpb: 0.1 #0.1
-  max_height: 8
-  max_length: 80
+  max_height: 17 # 17
+  max_length: 200
   init_min: 1
-  init_max: 2 # 2
+  init_max: 5 # 2
   mut_min: 1
   mut_max: 2
   elitism: True
@@ -23,9 +23,9 @@ defaults:
   tournsize: 3 # also fitness_size 
   parsimony_size: 1.7 # range[1,2]
   fitness_first: True
-  patience: 600
+  patience: null
   hof_size: 3 # 3
-  seed: 151
+  seed: 151 # 151
   multiproc: imap #imap
   chunksize: None
 validation:
@@ -49,7 +49,8 @@ logging:
 visualisation:
   no_plot: False
   save_gif: False
-  save_geojson: True
+  save_wkt: True
   short_gif: True
   map_zoom: 0.2
-  sol_txt: False
+  sol_txt: True
+  sol_png: True

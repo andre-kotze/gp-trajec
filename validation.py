@@ -6,7 +6,7 @@ from shapely.geometry import LineString, shape, MultiLineString
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.optimize import linprog
 from data.test_data_2d import barriers, pts # dict with multipolygons as values
-from data.test_data_3d import barriers3, pts3, example_hulls, example_points # dict with list of features (dicts) as values
+from data.test_data_3d import barriers3, pts3, example_hulls, example_points, global_max_z # dict with list of features (dicts) as values
 from gptrajec import transform_2d, eaTrajec
 import moeller_trumbore_algo as mt
 
@@ -47,18 +47,20 @@ def validate_2_5d(individual, params):
     # CHECK INTERSECTION
     # iterate through barriers dataset (feature dicts)
     for barrier in barriers3[params['barriers']].geoms:
+        z = barrier.exterior.coords[0][2]
+        #print(len(barrier.exterior.coords))
         # check solution intersection with feature geometry
         if individual.intersects(barrier):
             # to intersect in 3D, must also lie "inside" barrier
             intersection = individual.intersection(barrier)
             if isinstance(intersection, MultiLineString):
                 for part in intersection.geoms:
-                    if too_low([coord[2] for coord in part.coords],300):
+                    if too_low([coord[2] for coord in part.coords],z):
                         return False
                     elif any([within(coord[2]) for coord in part.coords]):
                         return False
             else:
-                if too_low([coord[2] for coord in intersection.coords],300):
+                if too_low([coord[2] for coord in intersection.coords],z):
                     return False
                 elif any([within(coord[2]) for coord in intersection.coords]):
                     return False
@@ -67,13 +69,17 @@ def validate_2_5d(individual, params):
 def flexible_validate_2_5d(individual, params):
     intersection = 0
     for barrier in barriers3[params['barriers']].geoms:
+        z = barrier.exterior.coords[0][2]
         if individual.intersects(barrier):
             intersect_geom = individual.intersection(barrier)
             if isinstance(intersect_geom, MultiLineString):
                 for part in intersect_geom.geoms:
-                    intersection += (part.length * (len([coord for coord in part.coords if coord[2] < 300]) / len(part.coords)))
+                    intersection += (part.length * (len([coord for coord in part.coords if coord[2] < z]) / len(part.coords)))
             else:
-                intersection += (intersect_geom.length * (len([coord for coord in intersect_geom.coords if coord[2] < 300]) / len(intersect_geom.coords)))
+                intersection += (intersect_geom.length * (len([coord for coord in intersect_geom.coords if coord[2] < z]) / len(intersect_geom.coords)))
+        clipd_verts = [coord for coord in individual.coords if coord[2] < 0 or coord[2] > global_max_z]
+        intersection += (individual.length * (len(clipd_verts) / len(individual.coords)))
+    #print(intersection, individual.length)
     return eval(params['int_cost'], {}, {"intersection": intersection})
 
 #
