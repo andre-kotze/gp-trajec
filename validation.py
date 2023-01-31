@@ -1,12 +1,13 @@
 # Validation functions for NSGA-III trajectories
 import numpy as np
+from math import log10
 
 # for 2D implementation/testing we use shapely
 from shapely.geometry import LineString, shape, MultiLineString
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.optimize import linprog
 from data.test_data_2d import barriers, pts # dict with multipolygons as values
-from data.test_data_3d import barriers3, pts3, example_hulls, example_points, global_max_z # dict with list of features (dicts) as values
+from data.test_data_3d import barriers3, pts3, example_hulls, example_points # dict with list of features (dicts) as values
 from gptrajec import transform_2d, eaTrajec
 import moeller_trumbore_algo as mt
 
@@ -48,7 +49,6 @@ def validate_2_5d(individual, params):
     # iterate through barriers dataset (feature dicts)
     for barrier in barriers3[params['barriers']].geoms:
         z = barrier.exterior.coords[0][2]
-        #print(len(barrier.exterior.coords))
         # check solution intersection with feature geometry
         if individual.intersects(barrier):
             # to intersect in 3D, must also lie "inside" barrier
@@ -77,10 +77,9 @@ def flexible_validate_2_5d(individual, params):
                     intersection += (part.length * (len([coord for coord in part.coords if coord[2] < z]) / len(part.coords)))
             else:
                 intersection += (intersect_geom.length * (len([coord for coord in intersect_geom.coords if coord[2] < z]) / len(intersect_geom.coords)))
-        clipd_verts = [coord for coord in individual.coords if coord[2] < 0 or coord[2] > global_max_z]
+        clipd_verts = [coord for coord in individual.coords if coord[2] < params['global_min_z'] or coord[2] > params['global_max_z']]
         intersection += (individual.length * (len(clipd_verts) / len(individual.coords)))
-    #print(intersection, individual.length)
-    return eval(params['int_cost'], {}, {"intersection": intersection})
+    return eval(params['int_cost'], {"log":log10}, {"intersection": intersection})
 
 #
 #   3D (scipy.spatial)
@@ -152,8 +151,6 @@ def validate_3d(individual, params):
     elif val_type == 'triangles':
         if triangles():
             pass
-    elif val_type == 'postgis':
-        pass
     else:
         raise ValueError(f'Unrecognised 3D validation method {val_type}')
 

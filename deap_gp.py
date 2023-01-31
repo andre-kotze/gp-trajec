@@ -17,6 +17,11 @@ def protectedDiv(left, right):
 # create toolbox instance
 toolbox = base.Toolbox()
 
+# create required classes
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+#creator.create("DblIndividual", list, fitness=creator.FitnessMin)
+
 # **makes no sense but params and individual args are switched:
 def evalPath_2d(params, individual):
     # Transform the tree expression in a callable function
@@ -26,7 +31,7 @@ def evalPath_2d(params, individual):
     y = [func(p) for p in x]
     line = transform_2d(np.column_stack((x, y)), params['interval'])
     line = LineString(line)
-    if params['no_intersect']:
+    if not params['adaptive_mode']:
         valid = v.validate_2d(line, params)
         if valid:
         # Evaluate the fitness (only consider length)
@@ -53,16 +58,16 @@ def evalPath_3d(params, individual):
     line_norm = np.linalg.norm(line)
     geo_z = line[:,2]
     line = LineString(line)
-    if params['no_intersect']:
+    if not params['adaptive_mode']:
         # to save some validation time, check path intersection with global min-max:
-        if any(zc <= 0 for zc in geo_z) or any(zc >= v.global_max_z for zc in geo_z):
+        if any(zc <= params['global_min_z'] for zc in geo_z) or any(zc >= params['global_max_z'] for zc in geo_z):
             valid = False
         else:
             valid = v.validate_3d(line, params)
         if valid:
         # Evaluate the fitness (only consider length)
             # line.length only works 2D
-            fitness = line.length + np.mean([coord[2] for coord in line.coords])
+            fitness = line.length + np.sum(np.abs(np.diff(geo_z)))
             #fitness = line_norm
         else:
             if params['delete_invalid']:
@@ -71,8 +76,8 @@ def evalPath_3d(params, individual):
             # Severely penalise invalid lines
                 fitness = eval(params['inv_cost'], {}, {"length": line.length})
     else:
-        fitness = v.flexible_validate_2_5d(line, params) + line.length + np.mean([coord[2] for coord in line.coords])
-        #print(f'z= {np.mean([coord[2] for coord in line.coords])}')
+        fitness = v.flexible_validate_2_5d(line, params) + line.length + np.sum(np.abs(np.diff(geo_z)))
+        #print(f'z= {np.mean(geo_z)}')
     return fitness,
 
 # NEW: for multiprocessing
@@ -99,12 +104,9 @@ def main(cfg):
     # Also conider math.cbrt, math.exp2, math.expm1, math.log, math.sqrt
     pset.addPrimitive(math.cos, 1)
     pset.addPrimitive(math.sin, 1)
-    pset.addEphemeralConstant("rand101", lambda: random.randint(-1,1))
+    pset.addEphemeralConstant(f"rand101_{cfg.seed}", lambda: random.randint(-1,1))
     
-    # create required classes
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
-    #creator.create("DblIndividual", list, fitness=creator.FitnessMin)
+    
 
     toolbox.register("compile", gp.compile, pset=pset)
 
@@ -117,9 +119,11 @@ def main(cfg):
     # dict of args to pass to evaluation functions
     eval_args = {'x' : cfg.x,
                 'barriers' : cfg.barriers,
+                'global_max_z' : cfg.global_max,
+                'global_min_z' : cfg.global_min,
                 'interval' : cfg.interval,
                 'validation_3d' : cfg.validation_3d,
-                'no_intersect' : cfg.no_intersect,
+                'adaptive_mode' : cfg.adaptive_mode,
                 'inv_cost' : cfg.invalidity_cost,
                 'int_cost' : cfg.intersection_cost,
                 'delete_invalid' : cfg.delete_invalid}
@@ -157,7 +161,8 @@ def main(cfg):
     # initialise stats
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     stats_size = tools.Statistics(len)
-    mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
+    stats_height = tools.Statistics(lambda ind: ind.height)
+    mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size, height=stats_height)
     mstats.register("mean", np.mean)
     mstats.register("std", np.std)
     mstats.register("min", np.min)
@@ -169,7 +174,7 @@ def main(cfg):
                                 stats=mstats,
                                 halloffame=hof,
                                 mp_pool=pool)
-    return pop, log, hof, pset, gen_best, durs, msg
+    return log, hof, pset, gen_best, durs, msg
 
 if __name__ == "__main__":
     main()

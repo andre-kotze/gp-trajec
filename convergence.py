@@ -12,7 +12,6 @@ from deap_gp import main as gp_main
 from data.test_data_2d import barriers, pts
 from data.test_data_3d import barriers3, pts3
 
-name = '3d_i_d_simpl1'
 plotvar = 'best'
 
 def parse_opts():
@@ -52,15 +51,16 @@ def main():
             # set random state for inner loop with the same land use order
             random.seed(j)
             opt.seed = j
-            pop, log, hof, pset, gen_best, durs, msg = gp_main(opt)
+            print(f'Running optimisation {j+1} of {opt.runs}:')
+            log, hof, pset, gen_best, durs, msg = gp_main(opt)
             df_log = pd.concat([df_log, pd.DataFrame(log)])
             sizes = pd.concat([sizes, pd.Series(log.chapters["size"].select("mean"))])
         df_log['mean_size'] = sizes.round(0)
-        df_log.to_csv(f'logs/convergence/{name}.csv', index=False)
+        df_log.to_csv(f'logs/convergence/{opt.name}.csv', index=False)
     else:
         df_log = pd.read_csv(f'logs/convergence/{opt.plot}')
     sns.lineplot(data=df_log, x="gen", y=plotvar)
-    plt.ylim(0,100)
+    plt.ylim(6000,9000)
     plt.show()
 
 if __name__ == "__main__":

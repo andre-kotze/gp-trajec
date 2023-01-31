@@ -152,7 +152,7 @@ def plot_log(log, hof, pset, opts, params, result):
     ax4 = fig1.add_subplot(gs[1,2])
     
     ax2.set_title('Fitness (Pop Best)', t_style)
-    ax3.set_title('Solution Size (Pop Mean)', t_style)
+    ax3.set_title('Size / Height (Pop Mean)', t_style)
     ax4.set_title('Evaluation Time (s/gen)', t_style)
     
     if opts.enable_3d:
@@ -231,6 +231,7 @@ def plot_log(log, hof, pset, opts, params, result):
     ax2.plot(log.chapters["fitness"].select("min"), color='g')
     ax2.set_ylim([0, opts.threshold])
     ax3.plot(log.chapters["size"].select("mean"), color='y')
+    ax3.plot(log.chapters['height'].select('mean'), color='red')
     ax4.plot(log.select('dur'), color='b')
     
 
@@ -252,7 +253,7 @@ def main(opt, pars):
     logging.info((f'# Displacement is {opt.crow_dist:.2f}, '
     f'performance threshold set to {opt.threshold:.2f}'))
     opt.x = np.linspace(opt.start,opt.end,opt.nsegs) # don't need x here
-    pop, log, hof, pset, gen_best, durs, msg = gp_main(opt)
+    log, hof, pset, gen_best, durs, msg = gp_main(opt)
     gens_done = len(gen_best)
     optimum = hof[0].fitness.getValues()[0]
     params = yaml.dump(pars, sort_keys=False, allow_unicode=True, indent=4)
@@ -319,8 +320,8 @@ def main(opt, pars):
                                     opt.destination,
                                     opt.ngen,
                                     gens_done,
-                                    int(opt.no_intersect),
-                                    opt.invalidity_cost if opt.no_intersect else opt.intersection_cost,
+                                    int(not(opt.adaptive_mode)),
+                                    opt.intersection_cost if opt.adaptive_mode else opt.invalidity_cost,
                                     opt.nsegs,
                                     '0,1',
                                     opt.threshold,
