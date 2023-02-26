@@ -67,7 +67,7 @@ def evalPath_3d(params, individual):
         if valid:
         # Evaluate the fitness (only consider length)
             # line.length only works 2D
-            fitness = line.length + np.sum(np.abs(np.diff(geo_z)))
+            fitness = np.hypot(line.length, np.sum(np.abs(np.diff(geo_z))))
             #fitness = line_norm
         else:
             if params['delete_invalid']:
@@ -76,7 +76,7 @@ def evalPath_3d(params, individual):
             # Severely penalise invalid lines
                 fitness = eval(params['inv_cost'], {}, {"length": line.length})
     else:
-        fitness = v.flexible_validate_2_5d(line, params) + line.length + np.sum(np.abs(np.diff(geo_z)))
+        fitness = v.flexible_validate_3d(line, params) + np.hypot(line.length, np.sum(np.abs(np.diff(geo_z))))
         #print(f'z= {np.mean(geo_z)}')
     return fitness,
 

@@ -65,11 +65,13 @@ exampspc_simp = MultiPolygon(exampspc_simp)
 
 example_hulls = [hull_from_poly(poly) for poly in example_space.geoms]
 cl_simp_hulls = [hull_from_poly(poly) for poly in clokes_simp.geoms]
+cl_simp_polies = [hull_from_poly(poly, True) for poly in clokes_simp.geoms]
 example_points = [hull.points for hull in example_hulls]
 
 barriers3 = {'clokes': clokes,
             'clokes_simp': clokes_simp,
             'cl_simp_hulls': cl_simp_hulls,
+            'cl_simp_polies': cl_simp_polies,
             'example_space': example_space,
             'example_space_simp': exampspc_simp,
             'staten': staten,

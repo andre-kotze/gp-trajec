@@ -37,13 +37,13 @@ def varAnd_pairs(population, toolbox, cxpb, mutpb):
 
     return offspring 
 
-def hull_from_poly(poly):
+def hull_from_poly(poly, pts_only=False):
     high_pts = np.array(poly.exterior.coords)
     x, y = poly.exterior.xy
     z = np.zeros(len(x))
     low_pts = np.column_stack((x,y,z))
     pts = np.append(high_pts, low_pts, axis=0)
-    return ConvexHull(pts)
+    return pts if pts_only else ConvexHull(pts)
 
 def eaTrajec(population, toolbox, cfg, stats=None,
              halloffame=None, mp_pool=None):

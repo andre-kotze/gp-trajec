@@ -1,8 +1,8 @@
 ---
 dataset:
   barriers: clokes_simp
-  origin: d
-  destination: c
+  origin: b
+  destination: h
   global_max: 2000
   global_min: 10
 defaults:
@@ -14,7 +14,7 @@ defaults:
   pop_size: 1000 #300
   cxpb: 0.5 #0.5
   mutpb: 0.1 #0.1
-  max_height: 8 # 17
+  max_height: 17 # 17
   max_length: null
   init_min: 1
   init_max: 2 # 2
@@ -26,22 +26,22 @@ defaults:
   parsimony_size: 1.7 # range[1,2]
   fitness_first: True
   patience: null
-  hof_size: 5 # 3
-  seed: 151 # 151
+  hof_size: 60 # 3
+  seed: null # 151
   multiproc: imap #imap
   chunksize: null
 validation:
   threshold: 2
-  adaptive_mode: True # adaptive != no_intersect
+  adaptive_mode: False # adaptive != no_intersect
   validation_3d: shapely
   # 3d validation options:
   # -delaunay
   # -shapely
   # -hulls_equal
-  # -linprog
-  # -triangles
-  invalidity_cost: length*10
-  intersection_cost: intersection*10
+  # -linprog NO
+  # -triangles NO
+  invalidity_cost: length*20
+  intersection_cost: (intersection+1)*20
   delete_invalid: False
 logging:
   no_log: False

@@ -81,6 +81,82 @@ def flexible_validate_2_5d(individual, params):
         intersection += (individual.length * (len(clipd_verts) / len(individual.coords)))
     return eval(params['int_cost'], {"log":log10}, {"intersection": intersection})
 
+
+
+def delauney_val(points, params):
+    #print('doing one validation')
+    for hull in barriers3[params['barriers']]:
+        for point in points:
+            if Delaunay(hull).find_simplex(point) >= 0: # True when intersecting
+                return False
+            elif any(points[:,2] < params['global_min_z']) or any(points[:,2] > params['global_max_z']):
+                return False
+    return True
+
+def delaunay_flex(points, params):
+    int_verts = 0
+    for hull in barriers3[params['barriers']]:
+        for point in points:
+            if Delaunay(hull).find_simplex(point) >= 0: # True when intersecting
+                int_verts += 1
+    intersection = int_verts / len(points) * np.sum(np.linalg.norm(points, axis=1))
+    return eval(params['int_cost'], {"log":log10}, {"intersection": intersection})
+
+
+def hulls_equal_multi(points, params):
+    for h, hull in enumerate(barriers3[params['barriers']]):
+    #hull = ConvexHull(poly)
+    #res = []
+        for pi, p in enumerate(points):
+            new_hull = ConvexHull(np.concatenate((hull.points, [p])))
+            if np.array_equal(new_hull.vertices, hull.vertices):
+                #print
+                return False
+    return True
+#
+#def delaunay_flex(points, params):
+#    int_verts = 0
+#    for hull in barriers3[params['barriers']]:
+#        for point in points:
+#            if Delaunay(hull).find_simplex(point) >= 0: # True when intersecting
+#                int_verts += 1
+#    intersection = int_verts / len(points) * np.sum(np.linalg.norm(points, axis=1))
+#    return eval(params['int_cost'], {"log":log10}, {"intersection": intersection})
+
+def validate_3d(individual, params):
+    val_type = params['validation_3d']
+    # CHECK CONTAINMENT
+    # iterate through barriers dataset (feature dicts)
+    #for barrier in barriers3[params['barriers']].geoms:
+        # check solution containment in feature geometry
+        # ToDo: check if bounding boxes intersect. If not, early exit
+    if val_type == 'shapely':
+        return validate_2_5d(individual, params)
+    elif val_type == 'delaunay':
+        return delauney_val(np.array(individual.coords), params)
+    elif val_type == 'hulls_equal':
+        return hulls_equal_multi(np.array(individual.coords), params)
+    #        pass
+    #elif val_type == 'linprog':
+    #    if linprog_val():
+    #        pass
+    #elif val_type == 'triangles':
+    #    if triangles():
+    #        pass
+    else:
+        raise ValueError(f'Unrecognised 3D validation method {val_type}')
+
+def flexible_validate_3d(individual, params):
+    val_type = params['validation_3d']
+    if val_type == 'shapely':
+        return flexible_validate_2_5d(individual, params)
+    elif val_type == 'delaunay':
+        return delaunay_flex(np.array(individual.coords), params)
+    else:
+        raise ValueError(f'Unrecognised 3D validation method {val_type}')
+
+
+
 #
 #   3D (scipy.spatial)
 #
@@ -96,13 +172,6 @@ def hulls_equal(hull, pnt):
         return True
     return False
 
-def hulls_equal_multi(poly, points):
-    hull = ConvexHull(poly)
-    res = []
-    for p in points:
-        new_hull = ConvexHull(np.concatenate((poly, [p])))
-        res.append(np.array_equal(new_hull.vertices, hull.vertices))
-    return res
 
 def linprog_val(hull_points, pnt): # apparently quite slow !!
     '''
@@ -123,35 +192,3 @@ def linprog_val(hull_points, pnt): # apparently quite slow !!
 def triangles(vertices, ray_origin, ray_direction):
     intersection = mt.ray_triangle_intersection(vertices, ray_origin, ray_direction)
     return intersection
-
-def delauney_val(hulls, points):
-    for hull in hulls:
-        for point in points:
-            if Delaunay(hull).find_simplex(point) >= 0: # True when intersecting
-                return False
-    return True
-
-def validate_3d(individual, params):
-    val_type = params['validation_3d']
-    # CHECK CONTAINMENT
-    # iterate through barriers dataset (feature dicts)
-    #for barrier in barriers3[params['barriers']].geoms:
-        # check solution containment in feature geometry
-        # ToDo: check if bounding boxes intersect. If not, early exit
-    if val_type == 'hulls_equal':
-        if hulls_equal(poly, point):
-            pass
-    elif val_type == 'delaunay':
-        return delauney_val(barriers3[params['barriers']], list(individual.coords))
-    elif val_type == 'shapely':
-        return validate_2_5d(individual, params)
-    elif val_type == 'linprog':
-        if linprog_val():
-            pass
-    elif val_type == 'triangles':
-        if triangles():
-            pass
-    else:
-        raise ValueError(f'Unrecognised 3D validation method {val_type}')
-
-    return True
