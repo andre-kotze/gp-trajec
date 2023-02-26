@@ -16,7 +16,9 @@ logs/
 
 # Testing
 test/
+dev/
 gp-trajec311.sh
+scratchpad.ipynb
 
 # Notebooks
 .ipynb_checkpoints/

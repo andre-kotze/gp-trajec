@@ -6,7 +6,7 @@
 
 The aim of this thesis is to solve the trajectory optimization problem with the artificial intelligence technique called "Genetic Programming" (GP). The produced trajectories are to be converted into geographical lines, which are tested for any interference with GIS-modelled 3D barriers.
 
-Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
+Based on Hildemann (2020) and Hildemann & Verstegen (2023) [3D-Flight-Route-Optimization](https://github.com/mohildemann/3D-Flight-Route-Optimization)
 
 ## How to use
 
@@ -21,7 +21,6 @@ Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohi
 - [Trajectory Optimisation](#trajectory-optimisation)
 - [Study Area](#study-area)
 - [Genetic Programming](#genetic-programming)
-- [Methodology](#methodology)
   - [Parameters](#parameters)
 - [Solution Anatomy](#solution-anatomy)
 - [Solution Transformation](#solution-transformation)
@@ -29,6 +28,7 @@ Based on Hildemann (2020) [3D-Flight-Route-Optimization](https://github.com/mohi
 - [The Cost Function](#the-cost-function)
 - [Elitism](#elitism)
 - [2-Dimensional Results](#2-dimensional-results)
+- [3-Dimensional Results](#3-dimensional-results)
 
 ## Trajectory Optimisation
 
@@ -46,13 +46,7 @@ From [CityOfNewYork/nyc-geo-metadata](https://github.com/CityOfNewYork/nyc-geo-m
 
 Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/deap)
 
-![Alt Text](demo/Genetic_Program_Tree.png)
-
-![Alt Text](demo/Genetic_programming_subtree_crossover.gif)
-
-## Methodology
-
-![Alt Text](demo/meth_flowchart.png)
+![Alt Text](demo/Meth_Flowchart.png)
 
 ### Parameters
 
@@ -61,20 +55,9 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | barriers | `str` | geofences dataset |
 | origin | `str` | start point |
 | destination | `str` | end point |
-| only_2d | `Bool` | ignore z-dimension completely |
-| no_log | `Bool` | don't save GP log |
-| no_record | `Bool` | don't record results to table |
-| verbose | `Bool` | output progress to console |
-| no_plot | `Bool` | don't save results png |
-| save_gif | `Bool` | save results gif |
-| short_gif | `Bool` | only show stepwise improvement in gif |
-| map_zoom | `float` | zoom level for solution map |
-| sol_txt | `Bool` | save solution as txt |
-| threshold | `float` | max fitness to plot (factor of direct distance) |
-| no_intersect | `Bool` | invalidate any intersecting lines |
-| validation_3d | `str` | 3D validation method to use
-| invalidity_cost | `exp` | penalty for intersection with `no_intersect=True` |
-| intersection_cost | `exp` | penalty for intersection with `no_intersect=False` |
+| global_max |`float`| global upper height limit |
+| global_min |`float`| global lower height limit |
+| enable_3d | `Bool` | allow navigation in 3 dimensions |
 | ngen | `int` | number of generations to evolve through |
 | nsegs | `int` | number of line vertices to use in solution validation |
 | pop_size | `int` | population size to use in GP |
@@ -82,14 +65,40 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | mutpb | `float` | probability of an individual mutating |
 | max_height | `int` | height limit for function trees |
 | max_length | `int` | length limit for function trees |
+| init_min | `int` | minimum height for new trees |
+| init_max | `int` | maximum height for new trees |
+| mut_min | `int` | minimum height for mutation subtree |
+| mut_max | `int` | maximum height for mutation subtree |
 | elitism | `Bool` | implement elitism |
+| dbl_tourn | `Bool` | use double tournament selection |
+| tournsize | `int` | number of individuals per tournament |
+| parsimony_size | `float` | weight of size in double tournament |
+| fitness_first | `Bool` | evaluate fitness first in double tournament |
 | patience | `int` | number of generations to wait for improvement |
 | hof_size | `int` | number of individuals to save in HallOfFame |
 | seed | `int` | random seed |
-| multiproc | `imap`,`map`,`None` | multiprocessing to use |
-| chunksize | `int` or `None` | chunksize parameter for multiprocessing |
+| multiproc | `str` | multiprocessing to use |
+| chunksize | `int` | chunksize parameter for multiprocessing |
+| threshold | `float` | max fitness to plot (factor of direct distance) |
+| adaptive_mode | `Bool` | quantitatively validate trajectories |
+| validation_3d | `str` | 3D validation method to use |
+| invalidity_cost | `exp` | penalty for intersection with `adaptive_mode=False` |
+| intersection_cost | `exp` | penalty for intersection with `adaptive_mode=True` |
+| delete_invalid | `Bool` | delete invalid solutions |
+| no_log | `Bool` | don't save GP log |
+| no_record | `Bool` | don't record results to table |
+| verbose | `Bool` | output progress to console |
+| no_plot | `Bool` | don't save results png |
+| save_gif | `Bool` | save results gif |
+| save_wkt | `Bool` | save result geometry as wkt |
+| short_gif | `Bool` | only show stepwise improvement in gif |
+| map_zoom | `float` | zoom level for solution map |
+| sol_txt | `Bool` | save solution as txt |
+| sol_png | `Bool` | save solution tree as png |
 
 ## Solution Anatomy
+
+![Alt Text](demo/trans.png)
 
 ## Solution Transformation
 
@@ -115,44 +124,39 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 
 ## The Cost Function
 
-At present, validation is dependent on non-intersection with barriers, and fitness is a single value: the length of the path.
+Validation is dependent on non-intersection with barriers. Fitness is dependent on the length of the path and the solution size.
 
-To be considered later:
+Also considered:
 
 1. Path variation in z-dimension (less=better)
-2. Solution size (smaller=better)
-3. Solution evolve-time (earlier=better)
+2. Solution evolve-time (earlier=better)
 
 ## Elitism
 
 Elitism can be activated via the `elitism` parameter.
-The number of elite individuals injected into the subsequent generation is determined by the HallOfFame size.
+The number of elite individuals injected into the subsequent generation is determined by the HallOfFame size and is recommendeed to be 5-10% of the pop_size.
 
 ## 2-Dimensional Results
 
-250 generations for optimising the path through Clove Lakes subset:
+![Alt Text](demo/2d_gb_clk_int.png)
 
-![Alt Text](demo/20221007-142043.png)
+![Alt Text](demo/2d_ex_int100.png)
 
 Visualising the evolution:
 
-![Alt Text](demo/20221007-142043.gif)
+![Alt Text](demo/8Nov_d-h_elitism.gif)
 
-![Alt Text](demo/6Nov_bc-tc_test.png)
+![Alt Text](demo/d-h-pres.png)
 
 ## 3-Dimensional Results
 
 100 generations for optimising the 3D path through Clove Lakes subset:
 
-![Alt Text](demo/test_3d.png)
+![Alt Text](demo/3d_examp_pop2000_ng250_test2)
 
-### ToDo
+![Alt Text](demo/2dvs3d.png)
 
-- implement concave 3D
-- plot 3D
-- implement stop criteria
-- fix 3D rotation matrices in doc
-- improved error handling
+![Alt Text](demo/quant2.png)
 
 ### Done
 
