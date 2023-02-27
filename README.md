@@ -22,7 +22,6 @@ Based on Hildemann (2020) and Hildemann & Verstegen (2023) [3D-Flight-Route-Opti
 - [Study Area](#study-area)
 - [Genetic Programming](#genetic-programming)
   - [Parameters](#parameters)
-- [Solution Anatomy](#solution-anatomy)
 - [Solution Transformation](#solution-transformation)
 - [Solution Validation](#solution-validation)
 - [The Cost Function](#the-cost-function)
@@ -96,11 +95,9 @@ Using [Distributed Evolutionary Algorithms in Python](https://github.com/DEAP/de
 | sol_txt | `Bool` | save solution as txt |
 | sol_png | `Bool` | save solution tree as png |
 
-## Solution Anatomy
+## Solution Transformation
 
 ![Alt Text](demo/trans.png)
-
-## Solution Transformation
 
 ![Alt Text](demo/transform.png)
 
@@ -146,13 +143,13 @@ Visualising the evolution:
 
 ![Alt Text](demo/8Nov_d-h_elitism.gif)
 
-![Alt Text](demo/d-h-pres.png)
+![Alt Text](demo/d-h-pres.gif)
 
 ## 3-Dimensional Results
 
 100 generations for optimising the 3D path through Clove Lakes subset:
 
-![Alt Text](demo/3d_examp_pop2000_ng250_test2)
+![Alt Text](demo/3d_examp_pop2000_ng250_test2.png)
 
 ![Alt Text](demo/2dvs3d.png)
 

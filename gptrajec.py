@@ -224,7 +224,7 @@ def eaTrajec(population, toolbox, cfg, stats=None,
             # NEW: select best of generation
             best = tools.selBest(population, 1)
             gen_best.extend(best)
-            run.set_description(f'# Fitness: {best[0].fitness.getValues()[0]:.2f}')
+            
 
             # Replace the current population by the offspring
             population[:] = offspring
@@ -243,6 +243,7 @@ def eaTrajec(population, toolbox, cfg, stats=None,
                     gens_without_improvement += 1
                 else:
                     gens_without_improvement = 0
+                run.set_description(f'# Fit: {best[0].fitness.getValues()[0]:.2f} | Pc: {gens_without_improvement}/{cfg.patience}')
                 if gens_without_improvement >= cfg.patience:
                     if mp_pool:
                         mp_pool.terminate()
@@ -250,7 +251,8 @@ def eaTrajec(population, toolbox, cfg, stats=None,
                     exit_msg = f'# Completed {gen} of {cfg.ngen} generations (end of patience reached)'
                     run.close()
                     break
-
+            else:
+                run.set_description(f'# Fit: {best[0].fitness.getValues()[0]:.2f}')
             if cfg.verbose:
                 tqdm.write(logbook.stream)
             if interrupted:

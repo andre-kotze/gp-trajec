@@ -238,7 +238,7 @@ def plot_log(log, hof, pset, opts, params, result):
     fig1.tight_layout()
     fig1.savefig(f'plot_out/{opts.name}.png')
     plt.show()
-    return len_factor, 'plot.png saved'
+    return len_factor, '# plot.png saved'
 
 def main(opt, pars):
     init_time = time.perf_counter()
@@ -348,7 +348,7 @@ def main(opt, pars):
         len_f, msg = plot_log(log, hof, pset, opt, params, result)
         logging.info(msg)
         # interesting final notes:
-        logging.info(f'hof[0] length, calculated without converting to geo: {opt.crow_dist * len_f}\n({len_f=})')
+        logging.info(f'# length calculated without converting to geo: {(opt.crow_dist * len_f):.2f}\n({len_f=})')
     if opt.save_gif:
         create_gif(gen_best, pset, opt)
     logging.info('[FINISHED]')
