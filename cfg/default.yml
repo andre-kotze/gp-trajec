@@ -1,14 +1,15 @@
 ---
 dataset:
-  barriers: aegean
-  origin: sw
-  destination: ne
+  barriers: porto
+  origin: ruadosol
+  destination: helipad
   global_max: 2000
   global_min: 10
+  dem: porto
 defaults:
-  enable_3d: False
+  enable_3d: True
   ngen: 400 # 250
-  nsegs: 3 # 100
+  nsegs: 100 # 100
   start: 0
   end: 1
   pop_size: 1000 #300
@@ -17,7 +18,7 @@ defaults:
   max_height: 17 # 17
   max_length: null
   init_min: 1
-  init_max: 2 # 2
+  init_max: 3 # 2
   mut_min: 1
   mut_max: 3
   elitism: True
@@ -25,9 +26,9 @@ defaults:
   tournsize: 3 # also fitness_size 
   parsimony_size: 1.7 # range[1,2]
   fitness_first: True
-  patience: 100
+  patience: 30
   hof_size: 20 # 3
-  seed: null # 151
+  seed: 151 # 151
   multiproc: imap #imap
   chunksize: null
 validation:
@@ -49,7 +50,7 @@ logging:
   verbose: False
 visualisation:
   no_plot: False
-  save_gif: True
+  save_gif: False
   save_wkt: True
   short_gif: True
   map_zoom: 0.2

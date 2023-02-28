@@ -121,6 +121,7 @@ def main(cfg):
                 'barriers' : cfg.barriers,
                 'global_max_z' : cfg.global_max,
                 'global_min_z' : cfg.global_min,
+                'dem' : cfg.dem,
                 'interval' : cfg.interval,
                 'validation_3d' : cfg.validation_3d,
                 'adaptive_mode' : cfg.adaptive_mode,

@@ -32,6 +32,11 @@ pts = {}
 with fiona.open('./data/clove_lakes_pts.gpkg', layer='pts') as layer:
     for feat in layer:
         pts[feat['properties']['name']] = shape(feat['geometry'])
+
+with fiona.open('./data/porto.gpkg', layer='porto_pts') as layer:
+    for feat in layer:
+        pts[feat['properties']['name']] = shape(feat['geometry'])
+
 pts.update(journeys)
 
 with fiona.open('./data/mediterranean.gpkg', layer='pts') as layer:
@@ -51,10 +56,18 @@ with fiona.open('./data/example_space.gpkg', layer='example_space') as layer:
         example_space.append(shape(feat['geometry']).geoms[0])
 example_space = MultiPolygon(example_space)
 
+porto = []
+#with fiona.open('./data/exampspc_simp_z_added.gpkg', layer='z_added') as layer:
+with fiona.open('./data/porto.gpkg', layer='simplified') as layer:
+    for feat in layer:
+        porto.append(shape(feat['geometry']).geoms[0])
+porto = MultiPolygon(porto)
+
 barriers = {'clokes': clokes,
             'clokes_simp':clokes,
             'aegean': islas,
-            'example_space': example_space}
+            'example_space': example_space,
+            'porto': porto}
 
 pts['ex0'] = Point(example_route.geoms[0].coords[0])
 pts['ex1'] = Point(example_route.geoms[0].coords[-1])

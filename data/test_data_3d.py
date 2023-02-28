@@ -2,6 +2,7 @@ import numpy as np
 from shapely.geometry import MultiLineString, Polygon, MultiPolygon, Point, shape
 from gptrajec import hull_from_poly
 import fiona
+import rasterio
 
 clokes = []
 with fiona.open('./data/clove_lakes_z.gpkg', layer='clove_lakes_z') as layer:
@@ -41,6 +42,11 @@ pts3 = {}
 with fiona.open('./data/clove_lakes_pts.gpkg', layer='pts') as layer:
     for feat in layer:
         pts3[feat['properties']['name']] = shape(feat['geometry'])
+
+with fiona.open('./data/porto.gpkg', layer='porto_pts') as layer:
+    for feat in layer:
+        pts3[feat['properties']['name']] = shape(feat['geometry'])
+
 pts3.update(journeys)
 
 example_route = []
@@ -63,6 +69,13 @@ with fiona.open('./data/example_space_subset.gpkg', layer='simp_z') as layer:
         exampspc_simp.append(shape(feat['geometry']).geoms[0])
 exampspc_simp = MultiPolygon(exampspc_simp)
 
+porto = []
+#with fiona.open('./data/exampspc_simp_z_added.gpkg', layer='z_added') as layer:
+with fiona.open('./data/porto.gpkg', layer='simplified') as layer:
+    for feat in layer:
+        porto.append(shape(feat['geometry']).geoms[0])
+porto = MultiPolygon(porto)
+
 example_hulls = [hull_from_poly(poly) for poly in example_space.geoms]
 cl_simp_hulls = [hull_from_poly(poly) for poly in clokes_simp.geoms]
 cl_simp_polies = [hull_from_poly(poly, True) for poly in clokes_simp.geoms]
@@ -74,10 +87,16 @@ barriers3 = {'clokes': clokes,
             'cl_simp_polies': cl_simp_polies,
             'example_space': example_space,
             'example_space_simp': exampspc_simp,
-            'staten': staten,
-            'staten_simp': staten_simp,}
+            'porto': porto
+            #'staten': staten,
+            #'staten_simp': staten_simp
+            }
 
 pts3['ex0'] = Point(list(example_route.geoms[0].coords[0]))
 pts3['ex1'] = Point(list(example_route.geoms[0].coords[-1]))
 pts3['nex0'] = Point(319641.7,59339.5,20)
 pts3['triv'] = Point(320660.8,60105.7,20)
+
+pdem = rasterio.open('./data/porto.tif')
+
+dems = {'porto' : pdem}

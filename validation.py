@@ -7,9 +7,10 @@ from shapely.geometry import LineString, shape, MultiLineString
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.optimize import linprog
 from data.test_data_2d import barriers, pts # dict with multipolygons as values
-from data.test_data_3d import barriers3, pts3, example_hulls, example_points # dict with list of features (dicts) as values
+from data.test_data_3d import barriers3, pts3, dems # dict with list of features (dicts) as values
 from gptrajec import transform_2d, eaTrajec
 import moeller_trumbore_algo as mt
+import rasterio
 
 def convex_hull(poly):
     high_pts = np.array(poly.exterior.coords)
@@ -67,6 +68,8 @@ def validate_2_5d(individual, params):
     return True
 
 def flexible_validate_2_5d(individual, params):
+    if params['dem']:
+        dem = dems[params['dem']]
     intersection = 0
     for barrier in barriers3[params['barriers']].geoms:
         z = barrier.exterior.coords[0][2]
@@ -77,7 +80,11 @@ def flexible_validate_2_5d(individual, params):
                     intersection += (part.length * (len([coord for coord in part.coords if coord[2] < z]) / len(part.coords)))
             else:
                 intersection += (intersect_geom.length * (len([coord for coord in intersect_geom.coords if coord[2] < z]) / len(intersect_geom.coords)))
-        clipd_verts = [coord for coord in individual.coords if coord[2] < params['global_min_z'] or coord[2] > params['global_max_z']]
+        if dem:
+            dem_pts = [z[0] for z in dem.sample([(coord[0],coord[1]) for coord in individual.coords])]
+            clipd_verts = [coord for coord, dem_z in zip(individual.coords, dem_pts) if coord[2] < params['global_min_z'] + dem_z or coord[2] > params['global_max_z']]
+        else:
+            clipd_verts = [coord for coord in individual.coords if coord[2] < params['global_min_z'] or coord[2] > params['global_max_z']]
         intersection += (individual.length * (len(clipd_verts) / len(individual.coords)))
     return eval(params['int_cost'], {"log":log10}, {"intersection": intersection})
 
