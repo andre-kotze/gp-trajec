@@ -70,6 +70,8 @@ def validate_2_5d(individual, params):
 def flexible_validate_2_5d(individual, params):
     if params['dem']:
         dem = dems[params['dem']]
+    else:
+        dem = None
     intersection = 0
     for barrier in barriers3[params['barriers']].geoms:
         z = barrier.exterior.coords[0][2]

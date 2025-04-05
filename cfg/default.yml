@@ -2,17 +2,17 @@
 dataset:
   barriers: porto
   origin: ruadosol
-  destination: helipad
-  global_max: 2000
+  destination: GnlTorres
+  global_max: 250
   global_min: 10
-  dem: porto
+  dem: null #porto
 defaults:
   enable_3d: True
-  ngen: 400 # 250
+  ngen: 1000 # 250
   nsegs: 100 # 100
   start: 0
   end: 1
-  pop_size: 1000 #300
+  pop_size: 500 #300
   cxpb: 0.9 #0.5
   mutpb: 0.5 #0.1
   max_height: 17 # 17
@@ -26,9 +26,9 @@ defaults:
   tournsize: 3 # also fitness_size 
   parsimony_size: 1.7 # range[1,2]
   fitness_first: True
-  patience: 30
-  hof_size: 20 # 3
-  seed: 151 # 151
+  patience: 500
+  hof_size: 5 # 3
+  seed: 20 # 151
   multiproc: imap #imap
   chunksize: null
 validation:
